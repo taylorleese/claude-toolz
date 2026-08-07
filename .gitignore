@@ -1,39 +1,15 @@
 # Python
-venv/
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+venv/
+.venv/
 
 # Environment
 .env
-.venv
 
-# Configuration
-config/
-
-# Database
-data/*.db
-data/*.db-journal
-
-# Node
-node_modules/
+# Claude Code local settings (project-local config is gitignored;
+# the marketplace lives at .claude-plugin/ + plugins/, not under .claude/)
+.claude/
 
 # IDE
 .vscode/
@@ -42,19 +18,11 @@ node_modules/
 *.swo
 *~
 
-# Claude Code local settings (project-local config is gitignored;
-# the marketplace lives at .claude-plugin/ + plugins/, not under .claude/)
-.claude/
-
 # OS
 .DS_Store
 Thumbs.db
 
 # Testing
-.coverage
-htmlcov/
-coverage.xml
-junit.xml
 .pytest_cache/
 
 # Tool caches

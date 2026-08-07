@@ -2,50 +2,81 @@
 
 ## Project Overview
 
-MCP server providing multi-LLM tools (ask_chatgpt, ask_gemini, ask_deepseek).
-Python 3.13+, src layout with `PYTHONPATH=src`.
+A Claude Code plugin marketplace. Four plugins live under `plugins/`, each advertised in `.claude-plugin/marketplace.json`.
+
+This repo is **not** a Python package. There is no `[project]` table, no lockfile, and nothing is published to a package index. The only Python is
+`plugins/ask-llm/skills/ask-llm/scripts/ask.py` (standard library only) and its tests.
 
 ## Key Commands
 
-- `make test` - Run tests (pytest, parallel via xdist)
-- `make lint` - Run all linters via pre-commit (33 hooks including black, ruff, mypy, bandit, vulture)
+- `make test` - Run tests (pytest)
+- `make lint` - Run all linters via pre-commit
 - `make format` - Auto-format code
-- `make compile-requirements` - Recompile requirements.txt from requirements.in (uses pip-compile with hashes)
+- `make check-plugins` - Verify every plugin in `marketplace.json` resolves on disk
+- `make refresh-plugins` - Refresh the local marketplace mirror + installed plugins from origin/main
 - `make all` - format + lint + test
-- `make publish` - **ALWAYS use this to release.** Runs tests, lint, commits version bump, creates git tag, pushes, and creates GitHub release. Never create releases or tags manually.
 
 ## Project Structure
 
-- `src/mcp_server/server.py` - MCP server with tool definitions and handlers
-- `src/context_manager/` - LLM client implementations (openai, gemini, deepseek)
-- `tests/` - pytest tests with asyncio auto mode; mock all API clients
+- `.claude-plugin/marketplace.json` - the plugin list Claude Code reads
+- `plugins/<name>/.claude-plugin/plugin.json` - per-plugin manifest; `name` must match the marketplace entry
+- `plugins/<name>/commands/` - slash commands
+- `plugins/<name>/skills/` - skills (model-invoked)
+- `plugins/<name>/hooks/` - hooks
+- `scripts/check_plugins.py` - validates the manifest; run by CI
+- `tests/` - pytest tests for `ask.py`; all network calls are mocked
+
+## Plugins
+
+- `ask-llm` - `/ask-llm` plus a model-invoked skill. `ask.py` has two transports: the `http` provider (`deepseek`) POSTs to a REST endpoint with an
+  API key, and `cli` providers (`codex`, `agy`) shell out to a local agent that authenticates against the user's own subscription — the script never
+  reads or transmits a credential for those. `--list` prints live readiness; `ASK_LLM_DISABLED_PROVIDERS` hides providers the user cannot use. Keep it
+  standard-library only; adding a dependency reintroduces the packaging and patching burden this plugin exists to avoid.
+  **CLI logins are interactive and must never be scripted** — on an auth failure the script names the command and the caller relays it.
+- `precommit-detect` - SessionStart/PostToolUse hooks that detect pre-commit setup state and walk through approval-gated installs.
+- `resolve-github-alerts` - `/resolve-github-alerts` plus a model-invoked skill. Triages and resolves GitHub security alerts across
+  pip/pip-tools/poetry/uv/npm/cargo/go/docker/actions ecosystems and opens a single PR for review.
+- `revise-all-docs` - `/revise-all-docs` captures session learnings; `/improve-all-docs` (and the `all-docs-improver` skill) run static quality audits.
+  Depends on `claude-md-management@anthropics`.
+
+### Command and skill conventions
+
+A plugin's `commands/` and `skills/` are two entry points, not two implementations. When a plugin has both, the **skill owns the workflow** and the command
+is a thin wrapper that invokes it via the `Skill` tool, parses `$ARGUMENTS`, and summarizes the result. Never duplicate the procedure in both files — they
+drift. `commands/improve-all-docs.md` is the reference example, at 17 lines.
+
+`/revise-all-docs` is the exception: it has no skill and owns its workflow inline, because capturing session learnings only makes sense on explicit request.
+
+Skill `description` frontmatter is what decides auto-invocation, so it must carry the trigger phrasing a user would actually type. For skills with side
+effects — `resolve-github-alerts` opens pull requests — the description must also state when *not* to fire.
+
+## Releasing
+
+No package publish step exists. To ship a plugin change: bump `version` in that plugin's `.claude-plugin/plugin.json`, merge to `main`, then
+`make refresh-plugins`. Claude Code keys its install cache by version, so an unbumped version makes the update a silent no-op.
 
 ## Code Style
 
-- Line length: 140 (black, ruff, isort all configured)
-- Strict mypy with `explicit_package_bases = true`
-- Google-style docstrings (pydocstyle)
+- Line length: 140 (ruff)
+- ruff is the whole Python toolchain — linting, import sorting, formatting, docstrings (`D`), and security rules (`S`). There is no separate black, isort,
+  flake8, pydocstyle, or bandit hook; do not re-add one.
+- Strict mypy
+- Google-style docstrings
 - Error messages use `msg = "..."; raise ValueError(msg)` pattern (ruff EM rules)
 - Markdown line length: 240 (markdownlint MD013) — wrap long paragraphs manually; the hook fails, it doesn't auto-wrap
 - Avoid `+` at the start of continuation lines in markdown — markdownlint MD004 silently rewrites it to `-`
 
 ## Testing
 
-- Tests run with `PYTHONPATH=src` (set in Makefile/pytest config)
-- All LLM API calls are mocked via `unittest.mock.patch` on the client classes
-- MCP server tests patch at `mcp_server.server.ClientClass` level
-- pytest markers: unit, integration, slow
-
-## Claude Code plugins
-
-This repo's `.claude-plugin/marketplace.json` ships four plugins. Install via `/plugin marketplace add taylorleese/mcp-toolz` from any session.
-
-- `mcp-toolz-server` - wraps `uvx --from mcp-toolz python -m mcp_server` as an installable MCP server config; one-step install of the multi-LLM tools for Claude Code users (other MCP clients still configure manually).
-- `precommit-detect` - SessionStart/PostToolUse hooks that detect whether the repo's pre-commit setup is wired up and walk through approval-gated installs.
-- `revise-all-docs` - two surfaces over CLAUDE.md, README.md, and docs/**/*.md: `/revise-all-docs` for session-learning capture, `/improve-all-docs` (and `all-docs-improver` skill) for static quality audits (depends on `claude-md-management@anthropics`).
-- `resolve-github-alerts` - `/resolve-github-alerts` triages and resolves GitHub security alerts across pip/pip-tools/poetry/uv/npm/cargo/go/docker/actions ecosystems and opens a single PR for review.
+- `ask.py` is imported by path in `tests/test_ask.py`; there is no installed package to import
+- HTTP providers are mocked by patching `urllib.request.urlopen`; CLI providers by patching `shutil.which` and `subprocess.run`. Tests must never make a
+  real network call or spawn a real agent.
+- Adding an **HTTP** provider is one `PROVIDERS` entry; reuse `_openai_payload` / `_openai_parse` for anything OpenAI-compatible. Adding a **CLI** provider
+  is one entry plus an `argv` builder; `reads_output_file` says whether the answer comes from a `-o` file or stdout, and `accepts_stdin` says whether
+  the context can be piped (codex) or must be inlined into the prompt under `MAX_INLINE_PROMPT_BYTES` (agy).
+- The parametrized tests derive their provider lists from `PROVIDERS`, so new entries are covered automatically for the shared behaviors
 
 ## Dependencies
 
-- After changing requirements.in, run `make compile-requirements` to regenerate hashed requirements.txt
-- google.generativeai is deprecated (FutureWarning) but still functional
+Dev tooling only: `pytest` and `pre-commit`, installed unpinned by `make install-dev`. Dependabot tracks GitHub Actions only, because that is the sole
+dependency surface left. Keep it that way.

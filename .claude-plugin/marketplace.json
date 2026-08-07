@@ -1,30 +1,30 @@
 {
-  "name": "mcp-toolz",
-  "description": "Claude Code plugins from the mcp-toolz developer toolkit.",
+  "name": "claude-toolz",
+  "description": "Claude Code plugins for second opinions, security triage, docs upkeep, and pre-commit setup.",
   "owner": {
     "name": "Taylor Leese",
     "email": "tleese22@gmail.com"
   },
   "plugins": [
     {
+      "name": "ask-llm",
+      "source": "./plugins/ask-llm",
+      "description": "Get a second opinion from Codex, Antigravity, or DeepSeek via /ask-llm or plain language. Standard-library Python script — no dependencies, no install step, and no API key needed for the agent providers."
+    },
+    {
       "name": "precommit-detect",
       "source": "./plugins/precommit-detect",
       "description": "Detects whether a repo's pre-commit setup is wired up and walks you through approval-gated installs."
     },
     {
+      "name": "resolve-github-alerts",
+      "source": "./plugins/resolve-github-alerts",
+      "description": "Resolves GitHub security alerts (Dependabot, code scanning, secret scanning) and opens PRs for review, via /resolve-github-alerts or plain language."
+    },
+    {
       "name": "revise-all-docs",
       "source": "./plugins/revise-all-docs",
       "description": "Updates and audits CLAUDE.md, README.md, and docs/**/*.md. /revise-all-docs captures session learnings; /improve-all-docs runs a static quality audit."
-    },
-    {
-      "name": "resolve-github-alerts",
-      "source": "./plugins/resolve-github-alerts",
-      "description": "Resolves GitHub security alerts (Dependabot, code scanning, secret scanning) and opens PRs for review."
-    },
-    {
-      "name": "mcp-toolz-server",
-      "source": "./plugins/mcp-toolz-server",
-      "description": "One-step install of the mcp-toolz MCP server in Claude Code (auto-registers ask_chatgpt / ask_gemini / ask_deepseek tools)."
     }
   ]
 }

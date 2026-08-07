@@ -6,7 +6,6 @@ name: CI
   pull_request:
     branches: [main]
 
-# Declare minimal permissions for all jobs
 permissions: read-all
 
 jobs:
@@ -26,28 +25,14 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'pip'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --require-hashes --no-cache-dir -r requirements-pip.txt
-          pip install --require-hashes --no-cache-dir -r requirements-dev.txt
+      # The code under test is standard library only, so pytest is the whole
+      # test-time dependency set. No lockfile, no hashes, nothing to bump.
+      - name: Install pytest
+        run: python -m pip install --no-cache-dir pytest
 
-      - name: Run tests with coverage
-        run: |
-          make test-cov
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de  # v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de  # v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          report_type: test_results
+      - name: Run tests
+        run: make test
 
   lint:
     name: Lint
@@ -62,13 +47,23 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
         with:
           python-version: "3.13"
-          cache: 'pip'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --require-hashes --no-cache-dir -r requirements-pip.txt
-          pip install --require-hashes --no-cache-dir -r requirements-dev.txt
+      - name: Install pre-commit
+        run: python -m pip install --no-cache-dir pre-commit
 
       - name: Run pre-commit hooks
-        run: |
-          make lint
+        run: make lint
+
+  plugins:
+    name: Validate plugin manifests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v5
+
+      # Catches the most common marketplace break: a plugin listed in
+      # marketplace.json whose source directory or manifest is missing.
+      - name: Check every listed plugin resolves
+        run: make check-plugins
