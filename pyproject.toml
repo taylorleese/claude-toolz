@@ -1,70 +1,35 @@
-[build-system]
-requires = ["setuptools>=75.8.0"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "mcp-toolz"
-version = "0.6.1"
-description = "Get feedback from ChatGPT, Gemini, and DeepSeek via MCP tools"
-readme = "README.md"
-requires-python = ">=3.13"
-license = "MIT"
-authors = [
-    {name = "Taylor Leese", email = "tleese22@gmail.com"}
-]
-keywords = [
-    "mcp",
-    "model-context-protocol",
-    "claude-code",
-    "ai-assistant",
-    "chatgpt",
-    "gemini",
-    "deepseek"
-]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.13",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-]
-dependencies = [
-    "mcp==1.26.0",
-    "pydantic==2.12.5",
-    "openai==2.29.0",
-    "google-generativeai==0.8.6",
-    "python-dotenv==1.2.2",
-    "urllib3==2.7.0",
-]
-
-[project.urls]
-Homepage = "https://github.com/taylorleese/mcp-toolz"
-Repository = "https://github.com/taylorleese/mcp-toolz"
-Issues = "https://github.com/taylorleese/mcp-toolz/issues"
-Documentation = "https://github.com/taylorleese/mcp-toolz#readme"
-
-[project.scripts]
-mcp-toolz = "mcp_server.__main__:main"
-
-[tool.black]
-line-length = 140
-target-version = ['py313']
-
-[tool.isort]
-profile = "black"
-line_length = 140
+# Tooling configuration only. This repository is a Claude Code plugin
+# marketplace, not a Python package — there is no [project] table, nothing is
+# built, and nothing is published to a package index.
 
 [tool.ruff]
 line-length = 140
 target-version = "py313"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP", "B", "A", "C4", "DTZ", "T10", "EM", "ISC", "ICN", "PIE", "PT", "Q", "RSE", "RET", "SIM", "TID", "ARG", "PLE", "PLW", "RUF"]
-ignore = []
+# S replaces the standalone bandit hook; D replaces pydocstyle;
+# I replaces isort; E/F/W replace flake8.
+select = [
+    "E", "F", "I", "N", "W", "UP", "B", "A", "C4", "DTZ", "T10", "EM", "ISC",
+    "ICN", "PIE", "PT", "Q", "RSE", "RET", "SIM", "TID", "ARG", "PLE", "PLW",
+    "RUF", "S", "D",
+]
+ignore = [
+    "D100",  # Module docstring not required in every file
+    "D104",  # Package docstring not required
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ARG002"]  # Allow unused arguments in tests (common with mock fixtures)
+"tests/*" = [
+    "S101",    # assert is the point of a test
+    "ARG002",  # unused args are common with mock fixtures
+]
+
+[tool.ruff.format]
+line-ending = "lf"
 
 [tool.mypy]
 python_version = "3.13"
@@ -72,39 +37,12 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
-mypy_path = "src"
-explicit_package_bases = true
+mypy_path = "plugins/ask-llm/skills/ask-llm/scripts"
 
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_decorators = false
 
-[[tool.mypy.overrides]]
-module = "google.*"
-ignore_missing_imports = true
-
-[tool.bandit]
-exclude_dirs = ["tests", "venv"]
-skips = ["B101"]
-
-[tool.pydocstyle]
-convention = "google"
-add_ignore = ["D100", "D104"]  # Ignore missing docstrings in modules and packages
-
-[tool.vulture]
-exclude = ["venv/", "build/"]
-min_confidence = 80
-
-[tool.coverage.run]
-omit = [
-    "*/mcp_server/__main__.py",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

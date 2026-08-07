@@ -1,9 +1,0 @@
-{
-  "name": "mcp-toolz-glama-deps",
-  "version": "1.0.0",
-  "description": "Global npm dependencies for mcp-toolz Glama image",
-  "private": true,
-  "dependencies": {
-    "mcp-proxy": "6.4.3"
-  }
-}

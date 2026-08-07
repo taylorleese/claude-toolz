@@ -1,0 +1,9 @@
+{
+  "name": "ask-llm",
+  "version": "0.1.0",
+  "description": "Get a second opinion from ChatGPT, Gemini, or DeepSeek. Standard-library Python script — no dependencies and no install step.",
+  "author": {
+    "name": "Taylor Leese",
+    "email": "tleese22@gmail.com"
+  }
+}

@@ -1,9 +1,0 @@
-# Trivy ignore file
-# Documentation: https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/#by-vulnerability-ids
-
-# CVE-2026-0994: protobuf JSON recursion depth bypass DoS
-# No patched version available yet (affects protobuf <= 6.33.4)
-# Risk accepted temporarily. Monitoring upstream for security patch.
-# Review date: 2026-01-27
-# TODO: Remove this ignore once patched version is released
-CVE-2026-0994

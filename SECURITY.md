@@ -1,107 +1,55 @@
 # Security Policy
 
-## Supported Versions
-
-We release patches for security vulnerabilities for the following versions:
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
-| < 0.1.0 | :x:                |
-
 ## Reporting a Vulnerability
 
-We take the security of mcp-toolz seriously. If you believe you have found a security vulnerability, please report it to us as described below.
+If you believe you have found a security vulnerability, please report it privately.
 
-For a list of disclosed security vulnerabilities, see our [GitHub Security Advisories](https://github.com/taylorleese/mcp-toolz/security/advisories).
+**Please do NOT report security vulnerabilities through public [GitHub issues](https://github.com/taylorleese/claude-toolz/issues).**
 
-### How to Report
+Instead, use GitHub's private vulnerability reporting: <https://github.com/taylorleese/claude-toolz/security/advisories/new>
 
-**Please do NOT report security vulnerabilities through public [GitHub issues](https://github.com/taylorleese/mcp-toolz/issues).**
+Or email: **tleese22 [at] gmail [dot] com**
 
-Instead, please report them via email to: **tleese22 [at] gmail [dot] com**
-
-Alternatively, you can use GitHub's private vulnerability reporting: <https://github.com/taylorleese/mcp-toolz/security/advisories/new>
-
-You should receive a response within 48 hours. If for some reason you do not, please follow up via email to ensure we received your original message.
+You should receive a response within 48 hours. If you do not, please follow up via email to confirm the report was received.
 
 ### What to Include
 
-Please include the following information in your report (if applicable):
-
-- Type of issue (e.g., injection, privilege escalation, information disclosure, etc.)
-- Full paths of source file(s) related to the manifestation of the issue
-- The location of the affected source code (tag/branch/commit or direct URL)
-- Any special configuration required to reproduce the issue
-- Step-by-step instructions to reproduce the issue
-- Proof-of-concept or exploit code (if possible)
-- Impact of the issue, including how an attacker might exploit it
-
-This information will help us triage your report more quickly.
-
-### Response Timeline
-
-- We will acknowledge receipt of your vulnerability report within 48 hours
-- We will send you a more detailed response within 96 hours indicating the next steps in handling your report
-- We will keep you informed about the progress towards a fix and full announcement
-- We may ask for additional information or guidance
+- Type of issue (e.g. command injection, credential disclosure, privilege escalation)
+- Full path of the affected file, and the tag/branch/commit
+- Any configuration required to reproduce
+- Step-by-step reproduction instructions
+- Proof-of-concept, if you have one
+- Impact, including how an attacker might exploit it
 
 ### Disclosure Policy
 
-- We ask that you do not publicly disclose the vulnerability until we have released a fix
-- We will credit you for the discovery when we announce the fix (unless you prefer to remain anonymous)
-- When we receive a security bug report, we will confirm the problem, determine affected versions, audit code to find similar problems, and prepare fixes for all supported versions
-- We will release new versions as soon as possible
+- Please do not publicly disclose until a fix is released
+- You will be credited when the fix is announced, unless you prefer to remain anonymous
+- Reports are acknowledged within 48 hours and triaged within 96 hours
 
-### Preferred Languages
+## Threat Model
 
-We prefer all communications to be in English.
+This repository ships Claude Code plugins — markdown instructions, shell hooks, and one standard-library Python script. It has no server, no network
+listener, and no persistent storage. The security-relevant surface is:
 
-## Security Best Practices
+- **API keys.** `ask-llm` reads `OPENAI_API_KEY`, `GOOGLE_API_KEY`, and `DEEPSEEK_API_KEY` from the environment. They are sent only to that provider's
+  official HTTPS endpoint, and are never logged, written to disk, or included in output.
+- **Outbound context.** `ask-llm` transmits whatever context you ask it to send to a third-party model provider. Treat it as you would any external API:
+  do not send secrets or regulated data, and review the provider's data-retention policy.
+- **Hooks.** `precommit-detect` registers hooks that run automatically in a Claude Code session. They are read-only — they inspect setup state and report
+  it. They never install anything without an explicit approval prompt.
+- **Plugin instructions.** Slash commands and skills are instructions to a model, and a model may act on them with your tool permissions. Review a plugin's
+  markdown before installing it, the same as you would review a shell script.
 
-When using mcp-toolz:
+## Security Practices
 
-1. **Protect API Keys**: Never commit API keys to version control. Use `.env` files or environment variables. The `.env.example` file provides a template.
-2. **Database Security**: The SQLite database (`~/.mcp-toolz/contexts.db`) may contain sensitive conversation data, code snippets, and AI responses. Ensure appropriate file permissions (e.g., `chmod 600`).
-3. **MCP Server**: When running as an MCP server, ensure your Claude Code configuration is secure and only accessible to authorized users.
-4. **Updates**: Keep mcp-toolz updated to the latest version to receive security patches. Use `pip install --upgrade mcp-toolz`.
-5. **Dependencies**: We actively monitor dependencies for vulnerabilities. Review security advisories before updating.
-6. **Input Validation**: While mcp-toolz validates inputs, always sanitize data before storing sensitive information.
+- Every workflow declares minimal `permissions`
+- GitHub Actions are pinned by commit SHA
+- CodeQL analysis runs on `python` and `actions` on every push, pull request, and weekly
+- Dependabot alerts are enabled; Dependabot version-bump PRs cover GitHub Actions, which is the only dependency surface in the repo
+- ruff's `S` (security) ruleset runs on every commit via pre-commit
+- Strict mypy type checking
 
-## Security Measures
+## Reporting Non-Vulnerabilities
 
-mcp-toolz implements the following security measures:
-
-- **Dependency Scanning**: Automated vulnerability scanning via Dependabot and GitHub's Dependency Review Action
-- **Code Quality**: Pre-commit hooks with security linters:
-  - `bandit` for Python security issues
-  - `ruff` for code quality and security patterns
-  - `mypy` for type safety
-- **Static Analysis**: Strict type checking to prevent type-related bugs
-- **License Compliance**: Automated license verification in CI/CD
-- **SQL Injection Prevention**: Parameterized queries throughout the codebase (no string concatenation)
-- **Input Validation**: Pydantic models for strict data validation
-- **Least Privilege**: GitHub Actions use minimal required permissions
-- **Secure Defaults**: Safe configuration defaults, explicit opt-in for sensitive features
-
-## Continuous Monitoring
-
-We continuously monitor security through:
-
-- [GitHub Dependabot alerts](https://github.com/taylorleese/mcp-toolz/security/dependabot)
-- [GitHub Security Advisories](https://github.com/taylorleese/mcp-toolz/security/advisories)
-- [Code scanning alerts](https://github.com/taylorleese/mcp-toolz/security/code-scanning)
-- Pre-commit security checks
-- [Dependency Review](https://github.com/taylorleese/mcp-toolz/security/dependabot) on all pull requests
-- Regular dependency updates
-- [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/taylorleese/mcp-toolz) monitoring
-
-## Additional Resources
-
-- [Project Documentation](https://github.com/taylorleese/mcp-toolz#readme)
-- [Contributing Guidelines](https://github.com/taylorleese/mcp-toolz/blob/main/CONTRIBUTING.md)
-- [License](https://github.com/taylorleese/mcp-toolz/blob/main/LICENSE)
-
-## Comments on this Policy
-
-If you have suggestions on how this process could be improved, please [submit a pull request](https://github.com/taylorleese/mcp-toolz/pulls) or [open an issue](https://github.com/taylorleese/mcp-toolz/issues).
+For bugs, feature requests, or questions, please [open an issue](https://github.com/taylorleese/claude-toolz/issues).

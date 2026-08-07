@@ -1,10 +1,10 @@
-# Contributing to mcp-toolz
+# Contributing to claude-toolz
 
-Thank you for your interest in contributing to mcp-toolz! We welcome contributions from the community.
+Thanks for your interest in contributing. This is a small repository and contributions of any size are welcome.
 
 ## Code of Conduct
 
-Please be respectful and constructive in your interactions with other contributors. We are committed to providing a welcoming and inclusive environment for everyone.
+Please be respectful and constructive in your interactions with other contributors.
 
 ## Getting Started
 
@@ -12,206 +12,94 @@ Please be respectful and constructive in your interactions with other contributo
 
 - Python 3.13 or later
 - Git
-- A GitHub account
 
-### Development Setup
-
-1. **Fork and clone the repository**
+### Setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/mcp-toolz.git
-cd mcp-toolz
+git clone https://github.com/YOUR_USERNAME/claude-toolz.git
+cd claude-toolz
+make install-dev
 ```
 
-2. **Create a virtual environment**
+`make install-dev` installs `pytest` and `pre-commit` and registers the pre-commit hook. That is the entire dev dependency set — there is no lockfile and
+no virtual environment is required, though one is fine if you prefer it.
 
-```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+## Repository Layout
+
+```text
+claude-toolz/
+├── .claude-plugin/
+│   └── marketplace.json          # the plugin list Claude Code reads
+├── plugins/
+│   ├── ask-llm/                  # skill + standard-library script
+│   ├── precommit-detect/         # session hooks
+│   ├── resolve-github-alerts/    # slash command
+│   └── revise-all-docs/          # slash commands + skill
+├── scripts/
+│   └── check_plugins.py          # marketplace manifest validator
+└── tests/
 ```
 
-3. **Install dependencies**
-
-```bash
-pip install -r requirements-dev.txt
-```
-
-4. **Install pre-commit hooks**
-
-```bash
-pre-commit install
-```
-
-This will automatically run code quality checks before each commit.
+Each plugin has a `.claude-plugin/plugin.json` whose `name` must match its entry in `marketplace.json`. `make check-plugins` enforces this, and CI runs it.
 
 ## Development Workflow
 
-### Creating a Branch
-
-Create a feature branch for your changes:
-
 ```bash
 git checkout -b feature/your-feature-name
-# or
-git checkout -b fix/your-bug-fix
 ```
 
-### Making Changes
-
-1. **Write your code** following our coding standards (see below)
-2. **Add tests** for new functionality
-3. **Update documentation** if needed
-4. **Run tests** to ensure everything works
-
-### Running Tests
+Make your change, then:
 
 ```bash
-# Run all tests
-make test
-
-# Run tests with coverage
-make test-cov
-
-# Run tests in parallel
-pytest tests/ -n auto
+make all      # format + lint + test
 ```
 
-### Code Quality Checks
+### Adding a plugin
 
-[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![mypy](https://img.shields.io/badge/mypy-checked-blue)](https://mypy-lang.org/)
-[![isort](https://img.shields.io/badge/imports-isort-blue)](https://pycqa.github.io/isort/)
-[![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
+1. Create `plugins/<name>/.claude-plugin/plugin.json` with `name`, `version`, `description`, and `author`
+2. Add `commands/`, `skills/`, and/or `hooks/` as needed
+3. Add a matching entry to `.claude-plugin/marketplace.json`
+4. Run `make check-plugins` — it fails both on plugins listed but missing, and on directories present but unlisted
+5. Document it in `README.md`
 
-We use several tools to maintain code quality:
+### Adding a provider to `ask-llm`
 
-```bash
-# Run all pre-commit hooks
-make lint
+Add an entry to `PROVIDERS` in `plugins/ask-llm/skills/ask-llm/scripts/ask.py` with a payload builder and a response parser. If the provider exposes an
+OpenAI-compatible endpoint, reuse `_openai_payload` and `_openai_parse` — only the URL and env vars differ. The parametrized tests pick up new entries
+automatically.
 
-# Or run individual checks:
-black .                    # Code formatting
-ruff check .               # Linting
-mypy src/                  # Type checking
-isort .                    # Import sorting
-bandit -r src/             # Security checks
-pip-audit                  # Dependency vulnerability scanning
-```
+**Keep `ask.py` standard-library only.** Adding a third-party dependency reintroduces exactly the packaging and patching burden this plugin is designed to
+avoid.
 
-All these checks run automatically via pre-commit hooks when you commit.
+## Coding Standards
 
-### Coding Standards
+- **Line length**: 140
+- **Toolchain**: ruff handles linting, import sorting, formatting, docstrings, and security rules. There is no separate black, isort, flake8, pydocstyle, or
+  bandit hook — please do not add one back.
+- **Type hints**: required on all functions; `mypy --strict` must pass
+- **Docstrings**: Google style
+- **Error messages**: assign first, then raise — `msg = "..."; raise ValueError(msg)` (ruff `EM` rules)
+- **Markdown**: 240-character lines (markdownlint MD013). The hook fails rather than wrapping for you.
 
-- **Style**: Follow PEP 8, enforced by `black` and `ruff`
-- **Type Hints**: All functions must have type hints (checked by `mypy --strict`)
-- **Docstrings**: Use Google-style docstrings for all public functions
-- **Line Length**: Maximum 140 characters
-- **Imports**: Organized by `isort` with black profile
-- **Security**: Pass `bandit` security checks
+## Testing Standards
 
-### Testing Standards
-
-- Maintain test coverage >= 80%
-- Write unit tests for all new functionality
-- Use pytest fixtures for common test data
-- Mock external API calls (OpenAI, Google, etc.)
-- Test both success and error cases
+- Mock all outbound HTTP by patching `urllib.request.urlopen`; tests must never hit a real API
+- Cover both the success path and the error path
+- `ask.py` is imported by path in `tests/test_ask.py` — there is no installed package to import
 
 ## Submitting Changes
 
-### Before Submitting
+1. Ensure `make all` passes
+2. Update `README.md` and `CLAUDE.md` if behavior changed
+3. Bump `version` in the affected plugin's `plugin.json` — without it, Claude Code's install cache makes the update a silent no-op
+4. Push your branch and open a pull request describing what changed and how you tested it
 
-1. Ensure all tests pass: `make test`
-2. Ensure code quality checks pass: `make lint`
-3. Update documentation if needed
-4. Add your changes to the commit
-
-### Creating a Pull Request
-
-1. **Push your branch** to your fork
-
-```bash
-git push origin feature/your-feature-name
-```
-
-2. **Open a Pull Request** on GitHub
-
-3. **Fill out the PR template** with:
-   - Description of changes
-   - Related issue number (if applicable)
-   - Testing performed
-   - Screenshots (if UI changes)
-
-4. **Respond to reviews** - maintainers may request changes
-
-### Pull Request Requirements
-
-- All CI checks must pass (tests, linting, CodeQL, Trivy)
-- Code coverage must not decrease
-- At least one approval from a maintainer
-- Branch must be up to date with main
-
-## Project Structure
-
-```
-mcp-toolz/
-├── src/
-│   ├── context_manager/     # CLI and core logic
-│   │   ├── cli.py           # Click-based CLI
-│   │   ├── storage.py       # SQLite storage layer
-│   │   ├── openai_client.py # ChatGPT integration
-│   │   ├── gemini_client.py     # Gemini integration
-│   │   └── deepseek_client.py   # DeepSeek integration
-│   ├── mcp_server/          # MCP server implementation
-│   │   └── server.py        # MCP protocol handlers
-│   └── models.py            # Pydantic data models
-├── tests/                   # Test suite
-├── .github/                 # GitHub Actions workflows
-├── pyproject.toml           # Project metadata and config
-└── README.md               # User documentation
-```
-
-## Areas for Contribution
-
-### Good First Issues
-
-Look for issues labeled `good first issue` - these are great starting points for new contributors.
-
-### Feature Ideas
-
-- Additional AI model integrations
-- Enhanced context management features
-- Improved CLI user experience
-- Better MCP server capabilities
-- Documentation improvements
-
-### Bug Reports
-
-Found a bug? Please open an issue with:
-
-- Description of the bug
-- Steps to reproduce
-- Expected vs actual behavior
-- Environment details (OS, Python version, etc.)
+CI must pass: tests on Python 3.13 and 3.14, pre-commit lint, plugin manifest validation, and CodeQL.
 
 ## Security
 
-Please report security vulnerabilities privately to **tleese22 [at] gmail [dot] com**. See [SECURITY.md](SECURITY.md) for details.
-
-## Questions?
-
-- Open a GitHub Discussion for questions
-- Check existing issues and PRs
-- Read the [README.md](README.md) for usage documentation
+Please report security vulnerabilities privately — see [SECURITY.md](SECURITY.md). Do not open a public issue for them.
 
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
-
-## Recognition
-
-Contributors are recognized in our release notes and can request to be added to the project's contributors list.
-
-Thank you for contributing to mcp-toolz!

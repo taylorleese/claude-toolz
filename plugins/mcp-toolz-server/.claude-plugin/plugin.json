@@ -1,9 +1,0 @@
-{
-  "name": "mcp-toolz-server",
-  "version": "0.2.0",
-  "description": "One-step install of the mcp-toolz MCP server (ask_chatgpt / ask_gemini / ask_deepseek). Wraps `uvx --from mcp-toolz python -m mcp_server` so Claude Code auto-registers the server without manual ~/.claude.json editing.",
-  "author": {
-    "name": "Taylor Leese",
-    "email": "tleese22@gmail.com"
-  }
-}
