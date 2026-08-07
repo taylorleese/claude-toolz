@@ -189,11 +189,11 @@ class TestCLIProviders:
         assert "key_env" not in ask.PROVIDERS[provider]
 
     def test_nonzero_exit_is_surfaced(self) -> None:
-        """A failing agent reports its stderr."""
+        """A failing agent reports its stderr. See TestAuthFailureDetection for the auth-specific path."""
         with (
             patch("shutil.which", return_value="/usr/local/bin/codex"),
-            patch("subprocess.run", return_value=_completed(["codex"], 1, stderr="not logged in")),
-            pytest.raises(RuntimeError, match="not logged in"),
+            patch("subprocess.run", return_value=_completed(["codex"], 1, stderr="disk quota exceeded")),
+            pytest.raises(RuntimeError, match="disk quota exceeded"),
         ):
             ask.ask("codex", "ctx")
 
@@ -235,8 +235,171 @@ class TestCLIProviders:
         assert "--skip-trust" in argv
 
 
+class TestDisabling:
+    """Providers switched off via the environment."""
+
+    def test_none_disabled_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An unset variable disables nothing."""
+        monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
+        assert ask.disabled_providers() == set()
+        assert ask.enabled_providers() == list(ask.PROVIDERS)
+
+    def test_parses_list_and_ignores_whitespace(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Comma-separated names are parsed, with blanks and padding tolerated."""
+        monkeypatch.setenv(ask.DISABLED_ENV, " gemini-cli , ,deepseek ")
+        assert ask.disabled_providers() == {"gemini-cli", "deepseek"}
+        assert "gemini-cli" not in ask.enabled_providers()
+
+    def test_disabled_provider_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Asking a disabled provider fails fast, without touching the network or a CLI."""
+        monkeypatch.setenv(ask.DISABLED_ENV, "gemini-cli")
+        with pytest.raises(ValueError, match="disabled via"):
+            ask.ask("gemini-cli", "ctx")
+
+    def test_refusal_happens_before_any_subprocess(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A disabled CLI provider must not spawn anything."""
+        monkeypatch.setenv(ask.DISABLED_ENV, "codex")
+        with patch("subprocess.run") as mock, pytest.raises(ValueError, match="disabled via"):
+            ask.ask("codex", "ctx")
+        mock.assert_not_called()
+
+
+class TestProviderStatus:
+    """The readiness report behind --list."""
+
+    def test_http_ready_when_key_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An HTTP provider with its key set is ready."""
+        monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        assert ask.provider_status("gemini")[0] == "ready"
+
+    def test_http_missing_names_the_variable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A missing key reports which variable to set."""
+        monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        state, detail = ask.provider_status("gemini")
+        assert state == "missing"
+        assert "GOOGLE_API_KEY" in detail
+
+    def test_disabled_short_circuits(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A disabled provider reports as disabled regardless of its real state."""
+        monkeypatch.setenv(ask.DISABLED_ENV, "codex")
+        with patch("subprocess.run") as mock:
+            assert ask.provider_status("codex")[0] == "disabled"
+        mock.assert_not_called()
+
+    def test_cli_missing_binary(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An uninstalled CLI reports how to install it."""
+        monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
+        with patch("shutil.which", return_value=None):
+            state, detail = ask.provider_status("codex")
+        assert state == "missing"
+        assert "not on PATH" in detail
+
+    def test_cli_ready_reports_status_line(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A successful status check surfaces the CLI's own wording, including from stderr."""
+        monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
+        with (
+            patch("shutil.which", return_value="/usr/local/bin/codex"),
+            patch("subprocess.run", return_value=_completed(["codex"], 0, stderr="Logged in using ChatGPT\n")),
+        ):
+            assert ask.provider_status("codex") == ("ready", "Logged in using ChatGPT")
+
+    def test_cli_unauthenticated_names_the_login_command(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A failing status check tells the user exactly what to run."""
+        monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
+        with (
+            patch("shutil.which", return_value="/usr/local/bin/codex"),
+            patch("subprocess.run", return_value=_completed(["codex"], 1)),
+        ):
+            state, detail = ask.provider_status("codex")
+        assert state == "unauthenticated"
+        assert "codex login" in detail
+
+    def test_cli_without_status_command_is_unknown(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Gemini CLI has no status subcommand, so readiness cannot be verified up front."""
+        monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
+        with patch("shutil.which", return_value="/opt/homebrew/bin/gemini"):
+            assert ask.provider_status("gemini-cli")[0] == "unknown"
+
+
+class TestAuthFailureDetection:
+    """Auth failures are distinguished from every other CLI failure."""
+
+    @pytest.mark.parametrize(
+        "stderr",
+        [
+            "Error: not logged in",
+            "401 Unauthorized",
+            "Error authenticating: IneligibleTierError: no longer supported",
+            "please login to continue",
+        ],
+    )
+    def test_auth_failures_name_the_login_command(self, stderr: str) -> None:
+        """Anything that looks like an auth problem points at the login command."""
+        with (
+            patch("shutil.which", return_value="/usr/local/bin/codex"),
+            patch("subprocess.run", return_value=_completed(["codex"], 1, stderr=stderr)),
+            pytest.raises(ValueError, match="not authenticated"),
+        ):
+            ask.ask("codex", "ctx")
+
+    def test_auth_message_includes_the_command(self) -> None:
+        """The remediation command appears verbatim so the user can copy it."""
+        with (
+            patch("shutil.which", return_value="/usr/local/bin/codex"),
+            patch("subprocess.run", return_value=_completed(["codex"], 1, stderr="not logged in")),
+            pytest.raises(ValueError, match="codex login"),
+        ):
+            ask.ask("codex", "ctx")
+
+    def test_stack_traces_are_trimmed_to_one_line(self) -> None:
+        """Only the first line of a multi-line agent error is kept."""
+        stderr = "Error authenticating: IneligibleTierError\n    at foo (file.js:1:2)\n    at bar (file.js:3:4)"
+        with (
+            patch("shutil.which", return_value="/usr/local/bin/codex"),
+            patch("subprocess.run", return_value=_completed(["codex"], 1, stderr=stderr)),
+            pytest.raises(ValueError, match="not authenticated") as caught,
+        ):
+            ask.ask("codex", "ctx")
+        assert "at foo" not in str(caught.value)
+
+    def test_non_auth_failure_stays_a_runtime_error(self) -> None:
+        """An unrelated crash must not be misreported as an auth problem."""
+        with (
+            patch("shutil.which", return_value="/usr/local/bin/codex"),
+            patch("subprocess.run", return_value=_completed(["codex"], 2, stderr="segmentation fault")),
+            pytest.raises(RuntimeError, match="exited 2"),
+        ):
+            ask.ask("codex", "ctx")
+
+    def test_http_401_points_at_the_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An HTTP 401 names the variable to rotate rather than dumping the body."""
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "bad-key")
+        error = urllib.error.HTTPError("url", 401, "Unauthorized", {}, io.BytesIO(b"nope"))  # type: ignore[arg-type]
+        with patch("urllib.request.urlopen", side_effect=error), pytest.raises(ValueError, match="DEEPSEEK_API_KEY"):
+            ask.ask("deepseek", "ctx")
+
+
 class TestMain:
     """CLI behavior."""
+
+    def test_list_prints_every_provider(self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+        """--list reports on all providers and exits 0 when any are usable."""
+        monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
+        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        monkeypatch.setattr("sys.argv", ["ask.py", "--list"])
+        with patch("shutil.which", return_value="/usr/local/bin/codex"), patch("subprocess.run", return_value=_completed(["codex"], 0)):
+            assert ask.main() == 0
+        out = capsys.readouterr().out
+        for provider in ask.PROVIDERS:
+            assert provider in out
+
+    def test_list_exits_nonzero_when_nothing_usable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """--list signals failure when no provider can be used at all."""
+        monkeypatch.setenv(ask.DISABLED_ENV, ",".join(ask.PROVIDERS))
+        monkeypatch.setattr("sys.argv", ["ask.py", "--list"])
+        assert ask.main() == 1
 
     def test_empty_stdin_exits_nonzero(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Empty stdin is an error, not an empty API call."""

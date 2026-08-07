@@ -30,8 +30,9 @@ This repo is **not** a Python package. There is no `[project]` table, no lockfil
 
 - `ask-llm` - `/ask-llm` plus a model-invoked skill. `ask.py` has two transports: `http` providers (`gemini`, `deepseek`) POST to a REST endpoint with an
   API key, and `cli` providers (`codex`, `gemini-cli`) shell out to a local agent that authenticates against the user's own subscription — the script never
-  reads or transmits a credential for those. Keep it standard-library only; adding a dependency reintroduces the packaging and patching burden this plugin
-  exists to avoid.
+  reads or transmits a credential for those. `--list` prints live readiness; `ASK_LLM_DISABLED_PROVIDERS` hides providers the user cannot use. Keep it
+  standard-library only; adding a dependency reintroduces the packaging and patching burden this plugin exists to avoid.
+  **CLI logins are interactive and must never be scripted** — on an auth failure the script names the command and the caller relays it.
 - `precommit-detect` - SessionStart/PostToolUse hooks that detect pre-commit setup state and walk through approval-gated installs.
 - `resolve-github-alerts` - `/resolve-github-alerts` plus a model-invoked skill. Triages and resolves GitHub security alerts across
   pip/pip-tools/poetry/uv/npm/cargo/go/docker/actions ecosystems and opens a single PR for review.

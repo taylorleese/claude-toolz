@@ -30,6 +30,29 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/ask-llm/scripts/ask.py" --provider gemini 
 | `--provider` | yes | `codex`, `gemini-cli`, `gemini`, or `deepseek` |
 | `--question` | no | A specific question about the context. Omit it to request a general second opinion. |
 | `--model` | no | Override the provider's default model |
+| `--list` | no | Print every provider's live readiness and exit. Takes no stdin. |
+
+### Checking what is usable
+
+Run `--list` before picking a provider if you are unsure what is configured on this machine, or when a call has just failed:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/ask-llm/scripts/ask.py" --list
+```
+
+It reports one of `ready`, `disabled`, `missing`, `unauthenticated`, or `unknown` per provider, with the exact remediation in the detail column, and
+exits non-zero if nothing is usable. It never makes a model call, so it is cheap and safe to run.
+
+### Disabling providers
+
+`ASK_LLM_DISABLED_PROVIDERS` is a comma-separated list of providers to switch off, for example a CLI whose account is not eligible:
+
+```bash
+export ASK_LLM_DISABLED_PROVIDERS=gemini-cli
+```
+
+Disabled providers are refused before any network or subprocess call. **Never pick a disabled provider**, and never include one in an `all`-style
+comparison — treat it as though it does not exist rather than surfacing its error to the user.
 
 ### Choosing a provider
 
@@ -58,7 +81,20 @@ transmits an API key for them.
 Because the script runs via Bash, API keys must be exported in the shell profile that Claude Code inherits (`~/.zshrc`, `~/.bashrc`) — not in a project
 `.env` file, which is not loaded.
 
-If a key is missing, or a required CLI is absent, the script exits 1 and says exactly what to set or install. Report that to the user rather than retrying.
+If a key is missing, or a required CLI is absent, the script exits 1 and says exactly what to set or install.
+
+### When authentication fails
+
+CLI logins are interactive — a device code or a browser OAuth flow — so they **cannot** be completed from a tool call, and attempting one headlessly will
+hang until it times out. When the script reports `is not authenticated`, do this instead:
+
+1. Relay the exact command it names (for example `codex login`).
+2. Tell the user they can run it in this session by typing `! codex login`, since the flow needs their terminal.
+3. Offer to retry the original question once they confirm, or to use a different `ready` provider now.
+4. If the failure is a permanent ineligibility rather than a lapsed session — the message says so — suggest adding that provider to
+   `ASK_LLM_DISABLED_PROVIDERS` so it stops surfacing.
+
+Never retry the same provider hoping it resolves itself, and never try to script the login.
 
 ## Guidance
 

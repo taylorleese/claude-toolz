@@ -55,6 +55,29 @@ working tree. It reasons before answering, so it takes seconds — use `gemini` 
 One caveat on `gemini-cli`: Google discontinued the free individual OAuth tier, so it needs Vertex AI or a licensed Code Assist seat. If it reports an
 ineligible tier, use the HTTP `gemini` provider instead.
 
+#### Checking readiness
+
+`/ask-llm status` prints what is actually usable on this machine — no model call, so it costs nothing:
+
+```text
+PROVIDER    TRANSPORT  STATE     DETAIL
+gemini      http       ready     GOOGLE_API_KEY is set
+deepseek    http       ready     DEEPSEEK_API_KEY is set
+codex       cli        ready     Logged in using ChatGPT
+gemini-cli  cli        disabled  switched off via ASK_LLM_DISABLED_PROVIDERS
+```
+
+When a CLI provider's session has lapsed it reports `unauthenticated` along with the exact command to run. Logins are interactive, so the script never
+tries to drive one itself — it names the command and Claude relays it.
+
+#### Turning a provider off
+
+Set `ASK_LLM_DISABLED_PROVIDERS` to a comma-separated list to hide providers you cannot use, so they are never picked and never surface an error:
+
+```bash
+export ASK_LLM_DISABLED_PROVIDERS=gemini-cli
+```
+
 The script uses only the Python standard library — nothing to install and no dependency to keep patched.
 
 ### `precommit-detect`

@@ -15,7 +15,8 @@ Invoke the `ask-llm:ask-llm` skill via the Skill tool. It owns the script invoca
 - If the first word is not a provider name, the whole of `$ARGUMENTS` is the question and the provider defaults to `codex` — no API key required and the
   strongest choice for code.
 - `all` means run `codex`, `gemini`, and `deepseek` concurrently in a single message, then summarize where they agree and disagree. Those are three
-  different vendors, so the disagreements are meaningful.
+  different vendors, so the disagreements are meaningful. Skip any provider listed in `ASK_LLM_DISABLED_PROVIDERS`.
+- `status` (or `list`) means run `ask.py --list` and show the readiness table instead of asking anything.
 - If `$ARGUMENTS` is empty, ask for a general second opinion on the current work using the default provider.
 
 Examples:
@@ -24,6 +25,7 @@ Examples:
 /ask-llm codex is this migration reversible?
 /ask-llm all which caching strategy would you pick here?
 /ask-llm does this error handling miss anything?
+/ask-llm status
 /ask-llm
 ```
 

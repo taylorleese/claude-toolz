@@ -11,6 +11,7 @@ Two transports:
 
 Usage:
     echo "<context>" | ask.py --provider codex [--question "..."] [--model "..."]
+    ask.py --list
 """
 
 import argparse
@@ -28,6 +29,12 @@ from typing import Any
 HTTP_TIMEOUT = 60.0
 # Agent CLIs plan and reason before answering, so they need far longer.
 CLI_TIMEOUT = 300.0
+# Pre-flight auth checks must be near-instant or they are not worth running.
+AUTH_CHECK_TIMEOUT = 15.0
+
+# Comma-separated provider names to hide. Set this for providers you cannot
+# use, so they never get picked and never surface an error.
+DISABLED_ENV = "ASK_LLM_DISABLED_PROVIDERS"
 
 CONSULT_SYSTEM = """You are a senior software engineering consultant providing second opinions on code, \
 architecture decisions, and implementation plans.
@@ -47,6 +54,20 @@ architecture decisions, and implementation plans.
 Provide clear, actionable answers based on the context provided."""
 
 DEFAULT_REQUEST = "Please provide a second opinion on the above context."
+
+# Substrings that mean "the CLI ran, but you are not authenticated" as opposed
+# to any other failure. Matched case-insensitively against stderr.
+AUTH_ERROR_MARKERS = (
+    "not logged in",
+    "unauthorized",
+    "authenticate",
+    "authentication",
+    "credential",
+    "please login",
+    "please log in",
+    "ineligible",
+    "401",
+)
 
 
 # --------------------------------------------------------------------------
@@ -163,7 +184,9 @@ PROVIDERS: dict[str, dict[str, Any]] = {
         "model_env": "ASK_LLM_CODEX_MODEL",
         "argv": _codex_argv,
         "reads_output_file": True,
-        "install_hint": "install with `brew install codex`, then run `codex login`",
+        "auth_check": ["login", "status"],
+        "auth_command": "codex login",
+        "install_hint": "install with `brew install codex`",
     },
     "gemini-cli": {
         "transport": "cli",
@@ -172,12 +195,77 @@ PROVIDERS: dict[str, dict[str, Any]] = {
         "model_env": "ASK_LLM_GEMINI_CLI_MODEL",
         "argv": _gemini_cli_argv,
         "reads_output_file": False,
-        # The free individual OAuth tier was discontinued; an eligible path is
-        # Vertex AI (GOOGLE_GENAI_USE_VERTEXAI), a licensed Code Assist seat,
-        # or GEMINI_API_KEY.
-        "install_hint": "install with `brew install gemini-cli`, then configure an auth method it is eligible for",
+        # No status subcommand exists, so auth state is only knowable by
+        # calling. Google discontinued the free individual OAuth tier; an
+        # eligible path is Vertex AI, a licensed Code Assist seat, or
+        # GEMINI_API_KEY.
+        "auth_check": None,
+        "auth_command": "gemini",
+        "auth_note": "Google discontinued the free individual tier; you need Vertex AI, a licensed Code Assist seat, or GEMINI_API_KEY",
+        "install_hint": "install with `brew install gemini-cli`",
     },
 }
+
+
+def disabled_providers() -> set[str]:
+    """Provider names the user has switched off via the environment."""
+    raw = os.getenv(DISABLED_ENV, "")
+    return {name.strip() for name in raw.split(",") if name.strip()}
+
+
+def enabled_providers() -> list[str]:
+    """Provider names that are not disabled, in registration order."""
+    off = disabled_providers()
+    return [name for name in PROVIDERS if name not in off]
+
+
+def _looks_like_auth_failure(text: str) -> bool:
+    """Whether CLI output indicates an auth problem rather than any other error."""
+    lowered = text.lower()
+    return any(marker in lowered for marker in AUTH_ERROR_MARKERS)
+
+
+def provider_status(name: str) -> tuple[str, str]:
+    """Report whether a provider is usable right now.
+
+    Returns:
+        A (state, detail) pair. State is one of ``ready``, ``disabled``,
+        ``missing``, ``unauthenticated``, or ``unknown``.
+    """
+    if name in disabled_providers():
+        return "disabled", f"switched off via {DISABLED_ENV}"
+
+    spec = PROVIDERS[name]
+
+    if spec["transport"] == "http":
+        if os.getenv(str(spec["key_env"])):
+            return "ready", f"{spec['key_env']} is set"
+        return "missing", f"set {spec['key_env']}"
+
+    binary = shutil.which(str(spec["binary"]))
+    if binary is None:
+        return "missing", f"`{spec['binary']}` not on PATH — {spec['install_hint']}"
+
+    check = spec.get("auth_check")
+    if not check:
+        return "unknown", "installed; no status command, auth verified only when called"
+
+    try:
+        proc = subprocess.run(  # noqa: S603
+            [binary, *check],
+            capture_output=True,
+            text=True,
+            timeout=AUTH_CHECK_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "unknown", "installed; status check did not complete"
+
+    if proc.returncode == 0:
+        # codex reports status on stderr, so check both streams.
+        reported = (proc.stdout.strip() or proc.stderr.strip()).splitlines()
+        return "ready", reported[0] if reported else "authenticated"
+    return "unauthenticated", f"run `{spec['auth_command']}`"
 
 
 def format_prompt(context: str, question: str | None = None) -> str:
@@ -219,6 +307,9 @@ def _ask_http(spec: dict[str, Any], context: str, question: str | None, model: s
             data = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")[:500]
+        if exc.code in (401, 403):
+            msg = f"{spec['label']} rejected the credential in {spec['key_env']} (HTTP {exc.code}) — rotate or re-export it"
+            raise ValueError(msg) from exc
         msg = f"{spec['label']} API returned HTTP {exc.code}: {detail}"
         raise RuntimeError(msg) from exc
     except urllib.error.URLError as exc:
@@ -268,6 +359,15 @@ def _ask_cli(spec: dict[str, Any], context: str, question: str | None, model: st
 
         if proc.returncode != 0:
             detail = (proc.stderr or proc.stdout or "").strip()[:500]
+            if _looks_like_auth_failure(detail):
+                # Authentication is interactive, so tell the caller exactly
+                # what to run rather than trying to drive a login headlessly.
+                # Keep only the first line — agent CLIs dump stack traces.
+                reason = detail.splitlines()[0] if detail else "authentication failed"
+                msg = f"{spec['label']} is not authenticated — run `{spec['auth_command']}` in your terminal, then retry. Reason: {reason}"
+                if spec.get("auth_note"):
+                    msg = f"{msg} Note: {spec['auth_note']}."
+                raise ValueError(msg)
             msg = f"{spec['label']} exited {proc.returncode}: {detail}"
             raise RuntimeError(msg)
 
@@ -293,22 +393,49 @@ def ask(provider: str, context: str, question: str | None = None, model: str | N
         model: Optional model override. Falls back to the provider's env var, then its default.
 
     Raises:
-        ValueError: If the provider is unconfigured or the response cannot be parsed.
+        ValueError: If the provider is disabled or unconfigured, or the response cannot be parsed.
         RuntimeError: If the provider errors out or is unreachable.
     """
+    if provider in disabled_providers():
+        msg = f"provider '{provider}' is disabled via {DISABLED_ENV}"
+        raise ValueError(msg)
+
     spec = PROVIDERS[provider]
     if spec["transport"] == "cli":
         return _ask_cli(spec, context, question, model)
     return _ask_http(spec, context, question, model)
 
 
+def print_status_table() -> int:
+    """Print each provider's live readiness and return an exit code."""
+    rows = [(name, PROVIDERS[name]["transport"], *provider_status(name)) for name in PROVIDERS]
+    width = max(len(r[0]) for r in rows)
+    state_width = max(len(r[2]) for r in rows)
+
+    print(f"{'PROVIDER'.ljust(width)}  {'TRANSPORT'.ljust(9)}  {'STATE'.ljust(state_width)}  DETAIL")
+    for name, transport, state, detail in rows:
+        print(f"{name.ljust(width)}  {transport.ljust(9)}  {state.ljust(state_width)}  {detail}")
+
+    usable = [r[0] for r in rows if r[2] in ("ready", "unknown")]
+    print()
+    print(f"usable now: {', '.join(usable) if usable else 'none'}")
+    return 0 if usable else 1
+
+
 def main() -> int:
     """Parse arguments, read context from stdin, and print the model's response."""
     parser = argparse.ArgumentParser(description="Ask a non-Claude model for a second opinion.")
-    parser.add_argument("--provider", required=True, choices=sorted(PROVIDERS), help="Which model to ask")
+    parser.add_argument("--provider", choices=sorted(PROVIDERS), help="Which model to ask")
     parser.add_argument("--question", help="Specific question. Omitted means a general second opinion.")
     parser.add_argument("--model", help="Override the provider's default model")
+    parser.add_argument("--list", action="store_true", help="Show each provider's readiness and exit")
     args = parser.parse_args()
+
+    if args.list:
+        return print_status_table()
+
+    if not args.provider:
+        parser.error("--provider is required (or pass --list)")
 
     context = sys.stdin.read().strip()
     if not context:
