@@ -27,7 +27,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/ask-llm/scripts/ask.py" --provider gemini 
 
 | Flag | Required | Notes |
 | --- | --- | --- |
-| `--provider` | yes | `codex`, `gemini-cli`, `gemini`, or `deepseek` |
+| `--provider` | yes | `codex`, `gemini`, or `deepseek` |
 | `--question` | no | A specific question about the context. Omit it to request a general second opinion. |
 | `--model` | no | Override the provider's default model |
 | `--list` | no | Print every provider's live readiness and exit. Takes no stdin. |
@@ -45,10 +45,11 @@ exits non-zero if nothing is usable. It never makes a model call, so it is cheap
 
 ### Disabling providers
 
-`ASK_LLM_DISABLED_PROVIDERS` is a comma-separated list of providers to switch off, for example a CLI whose account is not eligible:
+`ASK_LLM_DISABLED_PROVIDERS` is a comma-separated list of providers to switch off — a provider whose key you do not have, or whose account is not
+eligible:
 
 ```bash
-export ASK_LLM_DISABLED_PROVIDERS=gemini-cli
+export ASK_LLM_DISABLED_PROVIDERS=deepseek
 ```
 
 Disabled providers are refused before any network or subprocess call. **Never pick a disabled provider**, and never include one in an `all`-style
@@ -60,8 +61,6 @@ comparison — treat it as though it does not exist rather than surfacing its er
   rather than milliseconds. **Prefer it for anything substantive.**
 - **`gemini`** — fastest and cheapest (`gemini-2.5-flash`). Good for a quick sanity check.
 - **`deepseek`** — strong on code (`deepseek-chat`), and cheap.
-- **`gemini-cli`** — agentic Gemini, run locally, no API key. Requires an auth method the CLI is eligible for; Google discontinued the free individual
-  OAuth tier, so it needs Vertex AI or a licensed Code Assist seat. If it errors as ineligible, use `gemini` instead.
 
 For consensus, pair `codex` with `gemini` or `deepseek` — different vendors give genuinely independent views. Run them concurrently in a single message and
 summarize where they agree and disagree.
@@ -74,7 +73,6 @@ transmits an API key for them.
 | Provider | Transport | Auth | Model override |
 | --- | --- | --- | --- |
 | `codex` | CLI | `codex` on PATH + `codex login` | `ASK_LLM_CODEX_MODEL` |
-| `gemini-cli` | CLI | `gemini` on PATH + an eligible auth method | `ASK_LLM_GEMINI_CLI_MODEL` |
 | `gemini` | HTTP | `GOOGLE_API_KEY` | `ASK_LLM_GEMINI_MODEL` |
 | `deepseek` | HTTP | `DEEPSEEK_API_KEY` | `ASK_LLM_DEEPSEEK_MODEL` |
 
@@ -99,7 +97,7 @@ Never retry the same provider hoping it resolves itself, and never try to script
 ## Guidance
 
 - Include enough context to be useful — the relevant code, the constraint, and what has already been tried. A bare question gets a generic answer.
-- CLI providers run read-only (`codex` in a read-only sandbox and ephemeral; `gemini-cli` in `plan` mode), so they cannot modify the working tree.
+- CLI providers run read-only — `codex` uses a read-only sandbox and runs ephemeral — so they cannot modify the working tree or leave session files.
 - Everything you send leaves the machine for a third-party provider. Do not include secrets, credentials, or customer data.
 - The response is another model's opinion, not ground truth. Weigh it, say where you disagree, and never relay it as settled fact.
 - The script has no dependencies and needs no install step. Failures are a missing key, a missing CLI, a network error, or an upstream error — all reported

@@ -142,20 +142,6 @@ def _codex_argv(binary: str, prompt: str, model: str | None, out_path: str) -> l
     return argv
 
 
-def _gemini_cli_argv(binary: str, prompt: str, model: str | None, out_path: str) -> list[str]:  # noqa: ARG001
-    """Build a non-interactive Gemini CLI invocation.
-
-    `plan` is the read-only approval mode; --skip-trust stops it prompting for
-    workspace trust when run headlessly. It prints the answer to stdout, so
-    out_path is unused.
-    """
-    argv = [binary, "--approval-mode", "plan", "--skip-trust"]
-    if model:
-        argv += ["-m", model]
-    argv += ["-p", prompt]
-    return argv
-
-
 PROVIDERS: dict[str, dict[str, Any]] = {
     "gemini": {
         "transport": "http",
@@ -187,22 +173,6 @@ PROVIDERS: dict[str, dict[str, Any]] = {
         "auth_check": ["login", "status"],
         "auth_command": "codex login",
         "install_hint": "install with `brew install codex`",
-    },
-    "gemini-cli": {
-        "transport": "cli",
-        "label": "Gemini CLI",
-        "binary": "gemini",
-        "model_env": "ASK_LLM_GEMINI_CLI_MODEL",
-        "argv": _gemini_cli_argv,
-        "reads_output_file": False,
-        # No status subcommand exists, so auth state is only knowable by
-        # calling. Google discontinued the free individual OAuth tier; an
-        # eligible path is Vertex AI, a licensed Code Assist seat, or
-        # GEMINI_API_KEY.
-        "auth_check": None,
-        "auth_command": "gemini",
-        "auth_note": "Google discontinued the free individual tier; you need Vertex AI, a licensed Code Assist seat, or GEMINI_API_KEY",
-        "install_hint": "install with `brew install gemini-cli`",
     },
 }
 

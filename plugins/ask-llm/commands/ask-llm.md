@@ -11,7 +11,7 @@ Invoke the `ask-llm:ask-llm` skill via the Skill tool. It owns the script invoca
 
 `$ARGUMENTS` is `[provider] [question]`, both optional:
 
-- If the first word is `codex`, `gemini-cli`, `gemini`, `deepseek`, or `all`, that selects the provider and the remainder is the question.
+- If the first word is `codex`, `gemini`, `deepseek`, or `all`, that selects the provider and the remainder is the question.
 - If the first word is not a provider name, the whole of `$ARGUMENTS` is the question and the provider defaults to `codex` — no API key required and the
   strongest choice for code.
 - `all` means run `codex`, `gemini`, and `deepseek` concurrently in a single message, then summarize where they agree and disagree. Those are three

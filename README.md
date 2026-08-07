@@ -36,7 +36,7 @@ this bug" — and Claude invokes the skill. Or drive it explicitly:
 /ask-llm does this error handling miss anything?
 ```
 
-The first word selects the provider when it is `codex`, `gemini-cli`, `gemini`, `deepseek`, or `all`; otherwise the whole argument is the question and it
+The first word selects the provider when it is `codex`, `gemini`, `deepseek`, or `all`; otherwise the whole argument is the question and it
 defaults to Codex. `all` runs Codex, Gemini, and DeepSeek concurrently — three different vendors — and summarizes where they agree and disagree.
 
 Providers come in two flavors. **CLI providers** drive a locally installed agent that authenticates with your own subscription, so there is no API key to
@@ -45,15 +45,11 @@ manage at all. **HTTP providers** call a REST endpoint and need a key exported i
 | Provider | Transport | Auth | Default model | Model override |
 | --- | --- | --- | --- | --- |
 | `codex` | CLI | `codex login` — no API key | CLI default | `ASK_LLM_CODEX_MODEL` |
-| `gemini-cli` | CLI | eligible Gemini CLI auth — no API key | CLI default | `ASK_LLM_GEMINI_CLI_MODEL` |
 | `gemini` | HTTP | `GOOGLE_API_KEY` | `gemini-2.5-flash` | `ASK_LLM_GEMINI_MODEL` |
 | `deepseek` | HTTP | `DEEPSEEK_API_KEY` | `deepseek-chat` | `ASK_LLM_DEEPSEEK_MODEL` |
 
 `codex` is the best default: no key to manage, a coding agent rather than a raw chat model, and it runs in a read-only sandbox so it cannot touch your
 working tree. It reasons before answering, so it takes seconds — use `gemini` when you want an answer immediately.
-
-One caveat on `gemini-cli`: Google discontinued the free individual OAuth tier, so it needs Vertex AI or a licensed Code Assist seat. If it reports an
-ineligible tier, use the HTTP `gemini` provider instead.
 
 #### Checking readiness
 
@@ -64,7 +60,6 @@ PROVIDER    TRANSPORT  STATE     DETAIL
 gemini      http       ready     GOOGLE_API_KEY is set
 deepseek    http       ready     DEEPSEEK_API_KEY is set
 codex       cli        ready     Logged in using ChatGPT
-gemini-cli  cli        disabled  switched off via ASK_LLM_DISABLED_PROVIDERS
 ```
 
 When a CLI provider's session has lapsed it reports `unauthenticated` along with the exact command to run. Logins are interactive, so the script never
@@ -75,7 +70,7 @@ tries to drive one itself — it names the command and Claude relays it.
 Set `ASK_LLM_DISABLED_PROVIDERS` to a comma-separated list to hide providers you cannot use, so they are never picked and never surface an error:
 
 ```bash
-export ASK_LLM_DISABLED_PROVIDERS=gemini-cli
+export ASK_LLM_DISABLED_PROVIDERS=deepseek
 ```
 
 The script uses only the Python standard library — nothing to install and no dependency to keep patched.

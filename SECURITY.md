@@ -33,10 +33,11 @@ This repository ships Claude Code plugins — markdown instructions, shell hooks
 listener, and no persistent storage. The security-relevant surface is:
 
 - **API keys.** `ask-llm`'s HTTP providers read `GOOGLE_API_KEY` and `DEEPSEEK_API_KEY` from the environment. They are sent only to that provider's
-  official HTTPS endpoint, and are never logged, written to disk, or included in output. Its CLI providers (`codex`, `gemini-cli`) read no key at all —
-  they delegate to a locally installed agent that holds its own credentials, so no secret passes through this code.
+  official HTTPS endpoint, and are never logged, written to disk, or included in output. Its CLI provider (`codex`) reads no key at all — it delegates to a
+  locally installed agent that holds its own credentials, so no secret passes through this code.
 - **Subprocess execution.** CLI providers are invoked with an argument list and an absolute path resolved via `shutil.which` — never through a shell — so
-  neither the context nor the question can be interpreted as a command. They run read-only (`codex` sandboxed and ephemeral, `gemini-cli` in `plan` mode).
+  neither the context nor the question can be interpreted as a command. They run read-only: `codex` in a read-only sandbox and ephemeral, so it cannot
+  modify the working tree or persist session state.
 - **Outbound context.** `ask-llm` transmits whatever context you ask it to send to a third-party model provider. Treat it as you would any external API:
   do not send secrets or regulated data, and review the provider's data-retention policy.
 - **Hooks.** `precommit-detect` registers hooks that run automatically in a Claude Code session. They are read-only — they inspect setup state and report

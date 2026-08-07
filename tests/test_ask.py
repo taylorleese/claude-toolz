@@ -41,6 +41,38 @@ def _run_writing(text: str, returncode: int = 0) -> Callable[..., subprocess.Com
     return _run
 
 
+def _stdout_argv(binary: str, prompt: str, model: str | None, out_path: str) -> list[str]:  # noqa: ARG001
+    """Argv builder for the synthetic stdout-reading provider."""
+    return [binary, "-p", prompt]
+
+
+def register_stdout_provider(monkeypatch: pytest.MonkeyPatch, *, auth_check: list[str] | None = None) -> str:
+    """Register a synthetic CLI provider that prints to stdout and has no status command.
+
+    codex is currently the only real CLI provider, and it uses `-o` plus a
+    status subcommand. This keeps the other two branches covered — a future
+    agent CLI (Antigravity's `agy` prints to stdout with no status command)
+    will exercise them for real.
+    """
+    name = "stdout-agent"
+    monkeypatch.setitem(
+        ask.PROVIDERS,
+        name,
+        {
+            "transport": "cli",
+            "label": "Stdout Agent",
+            "binary": "stdout-agent",
+            "model_env": "ASK_LLM_STDOUT_AGENT_MODEL",
+            "argv": _stdout_argv,
+            "reads_output_file": False,
+            "auth_check": auth_check,
+            "auth_command": "stdout-agent login",
+            "install_hint": "synthetic test provider",
+        },
+    )
+    return name
+
+
 OPENAI_OK = {"choices": [{"message": {"content": "looks fine"}}]}
 GEMINI_OK = {"candidates": [{"content": {"parts": [{"text": "looks fine"}]}}]}
 
@@ -215,24 +247,15 @@ class TestCLIProviders:
         ):
             ask.ask("codex", "ctx")
 
-    def test_stdout_reading_provider(self) -> None:
-        """Gemini CLI prints its answer to stdout rather than to an output file."""
+    def test_stdout_reading_provider(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A CLI provider without an output file is read from stdout instead."""
+        monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
+        name = register_stdout_provider(monkeypatch)
         with (
-            patch("shutil.which", return_value="/opt/homebrew/bin/gemini"),
-            patch("subprocess.run", return_value=_completed(["gemini"], 0, stdout="from stdout")),
+            patch("shutil.which", return_value="/usr/local/bin/stdout-agent"),
+            patch("subprocess.run", return_value=_completed(["stdout-agent"], 0, stdout="from stdout")),
         ):
-            assert ask.ask("gemini-cli", "ctx") == "from stdout"
-
-    def test_gemini_cli_runs_read_only(self) -> None:
-        """Gemini CLI runs in plan (read-only) mode and skips the headless trust prompt."""
-        with (
-            patch("shutil.which", return_value="/opt/homebrew/bin/gemini"),
-            patch("subprocess.run", return_value=_completed(["gemini"], 0, stdout="ok")) as mock,
-        ):
-            ask.ask("gemini-cli", "ctx")
-        argv = mock.call_args[0][0]
-        assert argv[argv.index("--approval-mode") + 1] == "plan"
-        assert "--skip-trust" in argv
+            assert ask.ask(name, "ctx") == "from stdout"
 
 
 class TestDisabling:
@@ -246,15 +269,17 @@ class TestDisabling:
 
     def test_parses_list_and_ignores_whitespace(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Comma-separated names are parsed, with blanks and padding tolerated."""
-        monkeypatch.setenv(ask.DISABLED_ENV, " gemini-cli , ,deepseek ")
-        assert ask.disabled_providers() == {"gemini-cli", "deepseek"}
-        assert "gemini-cli" not in ask.enabled_providers()
+        monkeypatch.setenv(ask.DISABLED_ENV, " gemini , ,deepseek ")
+        assert ask.disabled_providers() == {"gemini", "deepseek"}
+        assert "gemini" not in ask.enabled_providers()
+        assert "codex" in ask.enabled_providers()
 
     def test_disabled_provider_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Asking a disabled provider fails fast, without touching the network or a CLI."""
-        monkeypatch.setenv(ask.DISABLED_ENV, "gemini-cli")
-        with pytest.raises(ValueError, match="disabled via"):
-            ask.ask("gemini-cli", "ctx")
+        monkeypatch.setenv(ask.DISABLED_ENV, "gemini")
+        with patch("urllib.request.urlopen") as mock, pytest.raises(ValueError, match="disabled via"):
+            ask.ask("gemini", "ctx")
+        mock.assert_not_called()
 
     def test_refusal_happens_before_any_subprocess(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A disabled CLI provider must not spawn anything."""
@@ -317,10 +342,12 @@ class TestProviderStatus:
         assert "codex login" in detail
 
     def test_cli_without_status_command_is_unknown(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Gemini CLI has no status subcommand, so readiness cannot be verified up front."""
+        """A CLI with no status subcommand reports unknown rather than claiming readiness."""
         monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
-        with patch("shutil.which", return_value="/opt/homebrew/bin/gemini"):
-            assert ask.provider_status("gemini-cli")[0] == "unknown"
+        name = register_stdout_provider(monkeypatch)
+        with patch("shutil.which", return_value="/usr/local/bin/stdout-agent"), patch("subprocess.run") as mock:
+            assert ask.provider_status(name)[0] == "unknown"
+        mock.assert_not_called()
 
 
 class TestAuthFailureDetection:
