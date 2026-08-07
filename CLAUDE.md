@@ -28,8 +28,10 @@ This repo is **not** a Python package. There is no `[project]` table, no lockfil
 
 ## Plugins
 
-- `ask-llm` - `/ask-llm` plus a model-invoked skill. `ask.py` calls ChatGPT / Gemini / DeepSeek REST endpoints directly. Keep it standard-library only;
-  adding a dependency reintroduces the packaging and patching burden this plugin exists to avoid.
+- `ask-llm` - `/ask-llm` plus a model-invoked skill. `ask.py` has two transports: `http` providers (`gemini`, `deepseek`) POST to a REST endpoint with an
+  API key, and `cli` providers (`codex`, `gemini-cli`) shell out to a local agent that authenticates against the user's own subscription — the script never
+  reads or transmits a credential for those. Keep it standard-library only; adding a dependency reintroduces the packaging and patching burden this plugin
+  exists to avoid.
 - `precommit-detect` - SessionStart/PostToolUse hooks that detect pre-commit setup state and walk through approval-gated installs.
 - `resolve-github-alerts` - `/resolve-github-alerts` plus a model-invoked skill. Triages and resolves GitHub security alerts across
   pip/pip-tools/poetry/uv/npm/cargo/go/docker/actions ecosystems and opens a single PR for review.
@@ -66,8 +68,11 @@ No package publish step exists. To ship a plugin change: bump `version` in that 
 ## Testing
 
 - `ask.py` is imported by path in `tests/test_ask.py`; there is no installed package to import
-- All provider HTTP calls are mocked by patching `urllib.request.urlopen`
-- Adding a provider means adding an entry to `PROVIDERS` plus a payload builder and a response parser — the parametrized tests pick it up automatically
+- HTTP providers are mocked by patching `urllib.request.urlopen`; CLI providers by patching `shutil.which` and `subprocess.run`. Tests must never make a
+  real network call or spawn a real agent.
+- Adding an **HTTP** provider is one `PROVIDERS` entry; reuse `_openai_payload` / `_openai_parse` for anything OpenAI-compatible. Adding a **CLI** provider
+  is one entry plus an `argv` builder, and `reads_output_file` says whether the answer comes from a `-o` file or stdout.
+- The parametrized tests derive their provider lists from `PROVIDERS`, so new entries are covered automatically for the shared behaviors
 
 ## Dependencies
 

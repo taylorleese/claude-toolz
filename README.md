@@ -25,30 +25,37 @@ Install only the ones you want — they are independent.
 
 ### `ask-llm`
 
-Gets a second opinion from a non-Claude frontier model: ChatGPT (OpenAI), Gemini (Google), or DeepSeek.
+Gets a second opinion from a non-Claude frontier model: Codex (OpenAI's coding agent), Gemini (Google), or DeepSeek.
 
-Two ways in. Ask in plain language — "ask Gemini what it thinks of this schema", "get a second opinion on this plan", "what would ChatGPT say about this
-bug" — and Claude invokes the skill. Or drive it explicitly:
+Two ways in. Ask in plain language — "ask Codex what it thinks of this schema", "get a second opinion on this plan", "what would another model say about
+this bug" — and Claude invokes the skill. Or drive it explicitly:
 
 ```text
-/ask-llm gemini is this migration reversible?
+/ask-llm codex is this migration reversible?
 /ask-llm all which caching strategy would you pick here?
 /ask-llm does this error handling miss anything?
 ```
 
-The first word selects the provider when it is `chatgpt`, `gemini`, `deepseek`, or `all`; otherwise the whole argument is the question and it defaults to
-Gemini. `all` runs the three concurrently and summarizes where they agree and disagree.
+The first word selects the provider when it is `codex`, `gemini-cli`, `gemini`, `deepseek`, or `all`; otherwise the whole argument is the question and it
+defaults to Codex. `all` runs Codex, Gemini, and DeepSeek concurrently — three different vendors — and summarizes where they agree and disagree.
 
-Set only the keys for the providers you use, exported in the shell profile Claude Code inherits (`~/.zshrc`, `~/.bashrc`):
+Providers come in two flavors. **CLI providers** drive a locally installed agent that authenticates with your own subscription, so there is no API key to
+manage at all. **HTTP providers** call a REST endpoint and need a key exported in the shell profile Claude Code inherits (`~/.zshrc`, `~/.bashrc`).
 
-| Provider | API key | Default model | Model override |
-| --- | --- | --- | --- |
-| ChatGPT | `OPENAI_API_KEY` | `gpt-5.1` | `ASK_LLM_CHATGPT_MODEL` |
-| Gemini | `GOOGLE_API_KEY` | `gemini-2.5-flash` | `ASK_LLM_GEMINI_MODEL` |
-| DeepSeek | `DEEPSEEK_API_KEY` | `deepseek-chat` | `ASK_LLM_DEEPSEEK_MODEL` |
+| Provider | Transport | Auth | Default model | Model override |
+| --- | --- | --- | --- | --- |
+| `codex` | CLI | `codex login` — no API key | CLI default | `ASK_LLM_CODEX_MODEL` |
+| `gemini-cli` | CLI | eligible Gemini CLI auth — no API key | CLI default | `ASK_LLM_GEMINI_CLI_MODEL` |
+| `gemini` | HTTP | `GOOGLE_API_KEY` | `gemini-2.5-flash` | `ASK_LLM_GEMINI_MODEL` |
+| `deepseek` | HTTP | `DEEPSEEK_API_KEY` | `deepseek-chat` | `ASK_LLM_DEEPSEEK_MODEL` |
 
-The script talks to each provider's REST endpoint using only the Python standard library, so there is nothing to install and no dependency to keep patched.
-Ask for consensus ("ask all three") and Claude runs them concurrently, then summarizes where they agree and disagree.
+`codex` is the best default: no key to manage, a coding agent rather than a raw chat model, and it runs in a read-only sandbox so it cannot touch your
+working tree. It reasons before answering, so it takes seconds — use `gemini` when you want an answer immediately.
+
+One caveat on `gemini-cli`: Google discontinued the free individual OAuth tier, so it needs Vertex AI or a licensed Code Assist seat. If it reports an
+ineligible tier, use the HTTP `gemini` provider instead.
+
+The script uses only the Python standard library — nothing to install and no dependency to keep patched.
 
 ### `precommit-detect`
 
