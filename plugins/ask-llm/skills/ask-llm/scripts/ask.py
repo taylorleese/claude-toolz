@@ -31,6 +31,10 @@ HTTP_TIMEOUT = 60.0
 CLI_TIMEOUT = 300.0
 # Pre-flight auth checks must be near-instant or they are not worth running.
 AUTH_CHECK_TIMEOUT = 15.0
+# Ceiling for providers that cannot read stdin and must take the context as a
+# command-line argument. ARG_MAX is 1 MiB on macOS and is shared with the
+# environment, so stay well under it.
+MAX_INLINE_PROMPT_BYTES = 256_000
 
 # Comma-separated provider names to hide. Set this for providers you cannot
 # use, so they never get picked and never surface an error.
@@ -142,6 +146,20 @@ def _codex_argv(binary: str, prompt: str, model: str | None, out_path: str) -> l
     return argv
 
 
+def _agy_argv(binary: str, prompt: str, model: str | None, out_path: str) -> list[str]:  # noqa: ARG001
+    """Build a non-interactive Antigravity invocation.
+
+    `plan` is the read-only execution mode. Unlike Codex, agy ignores stdin,
+    so the context is embedded in the prompt by the caller and out_path is
+    unused — it prints the answer to stdout with no preamble.
+    """
+    argv = [binary, "--mode", "plan"]
+    if model:
+        argv += ["--model", model]
+    argv += ["-p", prompt]
+    return argv
+
+
 PROVIDERS: dict[str, dict[str, Any]] = {
     "gemini": {
         "transport": "http",
@@ -170,9 +188,25 @@ PROVIDERS: dict[str, dict[str, Any]] = {
         "model_env": "ASK_LLM_CODEX_MODEL",
         "argv": _codex_argv,
         "reads_output_file": True,
+        "accepts_stdin": True,
         "auth_check": ["login", "status"],
         "auth_command": "codex login",
         "install_hint": "install with `brew install codex`",
+    },
+    "agy": {
+        "transport": "cli",
+        "label": "Antigravity",
+        "binary": "agy",
+        "model_env": "ASK_LLM_AGY_MODEL",
+        "argv": _agy_argv,
+        "reads_output_file": False,
+        # agy ignores piped input, so the context is inlined into the prompt.
+        "accepts_stdin": False,
+        # No status subcommand exists; auth is silent via the OS keyring on
+        # first run, so readiness is only knowable by calling.
+        "auth_check": None,
+        "auth_command": "agy",
+        "install_hint": "install with `curl -fsSL https://antigravity.google/cli/install.sh | bash`",
     },
 }
 
@@ -303,7 +337,25 @@ def _ask_cli(spec: dict[str, Any], context: str, question: str | None, model: st
 
     resolved_model = model or os.getenv(str(spec["model_env"])) or None
     system = ANSWER_SYSTEM if question else CONSULT_SYSTEM
-    prompt = f"{system}\n\n{question or DEFAULT_REQUEST}"
+
+    if spec.get("accepts_stdin", True):
+        # Preferred: the context is piped in, so its size is unbounded.
+        prompt = f"{system}\n\n{question or DEFAULT_REQUEST}"
+        stdin_payload = context
+    else:
+        # The CLI ignores stdin, so the context has to ride in the prompt
+        # argument — which is bounded by ARG_MAX (1 MiB on macOS, shared with
+        # the environment). Guard well below it rather than failing opaquely
+        # with OSError: Argument list too long.
+        prompt = f"{system}\n\n{format_prompt(context, question)}"
+        stdin_payload = ""
+        size = len(prompt.encode("utf-8"))
+        if size > MAX_INLINE_PROMPT_BYTES:
+            msg = (
+                f"context is too large for {spec['label']} ({size:,} bytes > {MAX_INLINE_PROMPT_BYTES:,}); "
+                f"it cannot read stdin, so the context must fit in the command line. Use codex, or send less context."
+            )
+            raise ValueError(msg)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         out_path = str(Path(tmpdir) / "answer.txt")
@@ -314,7 +366,7 @@ def _ask_cli(spec: dict[str, Any], context: str, question: str | None, model: st
             # so there is no shell and no PATH ambiguity.
             proc = subprocess.run(  # noqa: S603
                 argv,
-                input=context,
+                input=stdin_payload,
                 capture_output=True,
                 text=True,
                 timeout=CLI_TIMEOUT,

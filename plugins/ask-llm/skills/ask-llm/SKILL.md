@@ -1,6 +1,6 @@
 ---
 name: ask-llm
-description: Get a second opinion from a non-Claude frontier model — Codex (OpenAI's coding agent), Gemini, or DeepSeek. Use when the user says "ask Codex", "ask Gemini", "ask DeepSeek", "get a second opinion", "what would another model say", "sanity-check this with another model", or wants cross-model consensus on code, an architecture decision, or an implementation plan.
+description: Get a second opinion from a non-Claude frontier model — Codex (OpenAI's coding agent), Antigravity (Google's coding agent), Gemini, or DeepSeek. Use when the user says "ask Codex", "ask Antigravity", "ask agy", "ask Gemini", "ask DeepSeek", "get a second opinion", "what would another model say", "sanity-check this with another model", or wants cross-model consensus on code, an architecture decision, or an implementation plan.
 ---
 
 # Ask another LLM
@@ -27,7 +27,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/ask-llm/scripts/ask.py" --provider gemini 
 
 | Flag | Required | Notes |
 | --- | --- | --- |
-| `--provider` | yes | `codex`, `gemini`, or `deepseek` |
+| `--provider` | yes | `codex`, `agy`, `gemini`, or `deepseek` |
 | `--question` | no | A specific question about the context. Omit it to request a general second opinion. |
 | `--model` | no | Override the provider's default model |
 | `--list` | no | Print every provider's live readiness and exit. Takes no stdin. |
@@ -59,11 +59,19 @@ comparison — treat it as though it does not exist rather than surfacing its er
 
 - **`codex`** — OpenAI's coding agent, run locally. Needs no API key and is the strongest choice for code. Reasons before answering, so expect seconds
   rather than milliseconds. **Prefer it for anything substantive.**
+- **`agy`** — Antigravity, Google's coding agent, run locally. Needs no API key. Comparable depth to `codex`, and a genuinely different vendor, so it is
+  the best partner for a `codex` cross-check.
+- **`deepseek`** — strong on code (`deepseek-chat`), cheap, and fast.
 - **`gemini`** — fastest and cheapest (`gemini-2.5-flash`). Good for a quick sanity check.
-- **`deepseek`** — strong on code (`deepseek-chat`), and cheap.
 
-For consensus, pair `codex` with `gemini` or `deepseek` — different vendors give genuinely independent views. Run them concurrently in a single message and
-summarize where they agree and disagree.
+The CLI agents are roughly 5x slower than the HTTP providers — about 5-7 seconds against 1-2 — because they reason before answering. That is the tradeoff
+for depth and for needing no API key.
+
+For consensus, pick providers from different vendors: `codex` (OpenAI), `agy` (Google), `deepseek` (DeepSeek). Run them concurrently in a single message
+and summarize where they agree and disagree.
+
+One constraint specific to `agy`: it ignores stdin, so the context travels in the command-line argument and is capped at 256 KB. Anything larger is
+refused with a clear error — send it to `codex` instead, which reads stdin and has no such limit.
 
 ## Configuration
 
@@ -73,6 +81,7 @@ transmits an API key for them.
 | Provider | Transport | Auth | Model override |
 | --- | --- | --- | --- |
 | `codex` | CLI | `codex` on PATH + `codex login` | `ASK_LLM_CODEX_MODEL` |
+| `agy` | CLI | `agy` on PATH, authenticated on first run | `ASK_LLM_AGY_MODEL` |
 | `gemini` | HTTP | `GOOGLE_API_KEY` | `ASK_LLM_GEMINI_MODEL` |
 | `deepseek` | HTTP | `DEEPSEEK_API_KEY` | `ASK_LLM_DEEPSEEK_MODEL` |
 
@@ -97,7 +106,7 @@ Never retry the same provider hoping it resolves itself, and never try to script
 ## Guidance
 
 - Include enough context to be useful — the relevant code, the constraint, and what has already been tried. A bare question gets a generic answer.
-- CLI providers run read-only — `codex` uses a read-only sandbox and runs ephemeral — so they cannot modify the working tree or leave session files.
+- CLI providers run read-only — `codex` in a read-only sandbox and ephemeral, `agy` in `plan` mode — so they cannot modify the working tree.
 - Everything you send leaves the machine for a third-party provider. Do not include secrets, credentials, or customer data.
 - The response is another model's opinion, not ground truth. Weigh it, say where you disagree, and never relay it as settled fact.
 - The script has no dependencies and needs no install step. Failures are a missing key, a missing CLI, a network error, or an upstream error — all reported

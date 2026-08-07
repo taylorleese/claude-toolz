@@ -25,7 +25,7 @@ Install only the ones you want — they are independent.
 
 ### `ask-llm`
 
-Gets a second opinion from a non-Claude frontier model: Codex (OpenAI's coding agent), Gemini (Google), or DeepSeek.
+Gets a second opinion from a non-Claude frontier model: Codex (OpenAI's coding agent), Antigravity (Google's coding agent), Gemini, or DeepSeek.
 
 Two ways in. Ask in plain language — "ask Codex what it thinks of this schema", "get a second opinion on this plan", "what would another model say about
 this bug" — and Claude invokes the skill. Or drive it explicitly:
@@ -36,8 +36,8 @@ this bug" — and Claude invokes the skill. Or drive it explicitly:
 /ask-llm does this error handling miss anything?
 ```
 
-The first word selects the provider when it is `codex`, `gemini`, `deepseek`, or `all`; otherwise the whole argument is the question and it
-defaults to Codex. `all` runs Codex, Gemini, and DeepSeek concurrently — three different vendors — and summarizes where they agree and disagree.
+The first word selects the provider when it is `codex`, `agy`, `gemini`, `deepseek`, or `all`; otherwise the whole argument is the question and it
+defaults to Codex. `all` runs Codex, Antigravity, and DeepSeek concurrently — OpenAI, Google, and DeepSeek — and summarizes where they agree and disagree.
 
 Providers come in two flavors. **CLI providers** drive a locally installed agent that authenticates with your own subscription, so there is no API key to
 manage at all. **HTTP providers** call a REST endpoint and need a key exported in the shell profile Claude Code inherits (`~/.zshrc`, `~/.bashrc`).
@@ -45,11 +45,25 @@ manage at all. **HTTP providers** call a REST endpoint and need a key exported i
 | Provider | Transport | Auth | Default model | Model override |
 | --- | --- | --- | --- | --- |
 | `codex` | CLI | `codex login` — no API key | CLI default | `ASK_LLM_CODEX_MODEL` |
+| `agy` | CLI | authenticated on first run — no API key | CLI default | `ASK_LLM_AGY_MODEL` |
 | `gemini` | HTTP | `GOOGLE_API_KEY` | `gemini-2.5-flash` | `ASK_LLM_GEMINI_MODEL` |
 | `deepseek` | HTTP | `DEEPSEEK_API_KEY` | `deepseek-chat` | `ASK_LLM_DEEPSEEK_MODEL` |
 
 `codex` is the best default: no key to manage, a coding agent rather than a raw chat model, and it runs in a read-only sandbox so it cannot touch your
-working tree. It reasons before answering, so it takes seconds — use `gemini` when you want an answer immediately.
+working tree. `agy` is its Google counterpart and the best partner for a cross-vendor check.
+
+Measured on a trivial prompt, the split is roughly:
+
+| Provider | Latency |
+| --- | --- |
+| `gemini` | ~1.1s |
+| `deepseek` | ~1.4s |
+| `codex` | ~5.5s |
+| `agy` | ~6.4s |
+
+The CLI agents reason before answering; that is the cost of depth and of needing no API key. Reach for an HTTP provider when you want an answer
+immediately. One constraint on `agy`: it ignores stdin, so context rides in the command-line argument and is capped at 256 KB — larger contexts are
+refused with a clear error and should go to `codex`, which has no such limit.
 
 #### Checking readiness
 
@@ -60,6 +74,7 @@ PROVIDER    TRANSPORT  STATE     DETAIL
 gemini      http       ready     GOOGLE_API_KEY is set
 deepseek    http       ready     DEEPSEEK_API_KEY is set
 codex       cli        ready     Logged in using ChatGPT
+agy         cli        unknown   installed; no status command, auth verified only when called
 ```
 
 When a CLI provider's session has lapsed it reports `unauthenticated` along with the exact command to run. Logins are interactive, so the script never

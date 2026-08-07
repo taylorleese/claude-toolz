@@ -41,38 +41,6 @@ def _run_writing(text: str, returncode: int = 0) -> Callable[..., subprocess.Com
     return _run
 
 
-def _stdout_argv(binary: str, prompt: str, model: str | None, out_path: str) -> list[str]:  # noqa: ARG001
-    """Argv builder for the synthetic stdout-reading provider."""
-    return [binary, "-p", prompt]
-
-
-def register_stdout_provider(monkeypatch: pytest.MonkeyPatch, *, auth_check: list[str] | None = None) -> str:
-    """Register a synthetic CLI provider that prints to stdout and has no status command.
-
-    codex is currently the only real CLI provider, and it uses `-o` plus a
-    status subcommand. This keeps the other two branches covered — a future
-    agent CLI (Antigravity's `agy` prints to stdout with no status command)
-    will exercise them for real.
-    """
-    name = "stdout-agent"
-    monkeypatch.setitem(
-        ask.PROVIDERS,
-        name,
-        {
-            "transport": "cli",
-            "label": "Stdout Agent",
-            "binary": "stdout-agent",
-            "model_env": "ASK_LLM_STDOUT_AGENT_MODEL",
-            "argv": _stdout_argv,
-            "reads_output_file": False,
-            "auth_check": auth_check,
-            "auth_command": "stdout-agent login",
-            "install_hint": "synthetic test provider",
-        },
-    )
-    return name
-
-
 OPENAI_OK = {"choices": [{"message": {"content": "looks fine"}}]}
 GEMINI_OK = {"candidates": [{"content": {"parts": [{"text": "looks fine"}]}}]}
 
@@ -247,15 +215,56 @@ class TestCLIProviders:
         ):
             ask.ask("codex", "ctx")
 
-    def test_stdout_reading_provider(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A CLI provider without an output file is read from stdout instead."""
-        monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
-        name = register_stdout_provider(monkeypatch)
+    def test_stdout_reading_provider(self) -> None:
+        """Agy writes no output file, so its answer is read from stdout."""
         with (
-            patch("shutil.which", return_value="/usr/local/bin/stdout-agent"),
-            patch("subprocess.run", return_value=_completed(["stdout-agent"], 0, stdout="from stdout")),
+            patch("shutil.which", return_value="/Users/x/.local/bin/agy"),
+            patch("subprocess.run", return_value=_completed(["agy"], 0, stdout="from stdout")),
         ):
-            assert ask.ask(name, "ctx") == "from stdout"
+            assert ask.ask("agy", "ctx") == "from stdout"
+
+    def test_agy_gets_no_stdin_and_inlines_the_context(self) -> None:
+        """Agy ignores piped input, so the context must ride in the prompt argument."""
+        with (
+            patch("shutil.which", return_value="/Users/x/.local/bin/agy"),
+            patch("subprocess.run", return_value=_completed(["agy"], 0, stdout="ok")) as mock,
+        ):
+            ask.ask("agy", "THE-CONTEXT", question="why?")
+        assert mock.call_args.kwargs["input"] == ""
+        prompt = mock.call_args[0][0][-1]
+        assert "THE-CONTEXT" in prompt
+        assert "**Question:** why?" in prompt
+
+    def test_agy_runs_in_plan_mode(self) -> None:
+        """Agy must run read-only so it cannot edit the tree."""
+        with (
+            patch("shutil.which", return_value="/Users/x/.local/bin/agy"),
+            patch("subprocess.run", return_value=_completed(["agy"], 0, stdout="ok")) as mock,
+        ):
+            ask.ask("agy", "ctx")
+        argv = mock.call_args[0][0]
+        assert argv[argv.index("--mode") + 1] == "plan"
+
+    def test_oversized_context_is_refused_before_spawning(self) -> None:
+        """A context too large for ARG_MAX fails clearly instead of raising OSError."""
+        huge = "x" * (ask.MAX_INLINE_PROMPT_BYTES + 1)
+        with (
+            patch("shutil.which", return_value="/Users/x/.local/bin/agy"),
+            patch("subprocess.run") as mock,
+            pytest.raises(ValueError, match="too large"),
+        ):
+            ask.ask("agy", huge)
+        mock.assert_not_called()
+
+    def test_stdin_provider_is_not_size_limited(self) -> None:
+        """Codex reads stdin, so a large context is fine there."""
+        huge = "x" * (ask.MAX_INLINE_PROMPT_BYTES + 1)
+        with (
+            patch("shutil.which", return_value="/usr/local/bin/codex"),
+            patch("subprocess.run", side_effect=_run_writing("ok")) as mock,
+        ):
+            assert ask.ask("codex", huge) == "ok"
+        assert mock.call_args.kwargs["input"] == huge
 
 
 class TestDisabling:
@@ -342,11 +351,10 @@ class TestProviderStatus:
         assert "codex login" in detail
 
     def test_cli_without_status_command_is_unknown(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A CLI with no status subcommand reports unknown rather than claiming readiness."""
+        """Agy has no status subcommand, so readiness reports unknown rather than claiming ready."""
         monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
-        name = register_stdout_provider(monkeypatch)
-        with patch("shutil.which", return_value="/usr/local/bin/stdout-agent"), patch("subprocess.run") as mock:
-            assert ask.provider_status(name)[0] == "unknown"
+        with patch("shutil.which", return_value="/Users/x/.local/bin/agy"), patch("subprocess.run") as mock:
+            assert ask.provider_status("agy")[0] == "unknown"
         mock.assert_not_called()
 
 

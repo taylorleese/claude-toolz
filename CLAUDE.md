@@ -29,7 +29,7 @@ This repo is **not** a Python package. There is no `[project]` table, no lockfil
 ## Plugins
 
 - `ask-llm` - `/ask-llm` plus a model-invoked skill. `ask.py` has two transports: `http` providers (`gemini`, `deepseek`) POST to a REST endpoint with an
-  API key, and `cli` providers (`codex`) shell out to a local agent that authenticates against the user's own subscription — the script never
+  API key, and `cli` providers (`codex`, `agy`) shell out to a local agent that authenticates against the user's own subscription — the script never
   reads or transmits a credential for those. `--list` prints live readiness; `ASK_LLM_DISABLED_PROVIDERS` hides providers the user cannot use. Keep it
   standard-library only; adding a dependency reintroduces the packaging and patching burden this plugin exists to avoid.
   **CLI logins are interactive and must never be scripted** — on an auth failure the script names the command and the caller relays it.
@@ -72,7 +72,8 @@ No package publish step exists. To ship a plugin change: bump `version` in that 
 - HTTP providers are mocked by patching `urllib.request.urlopen`; CLI providers by patching `shutil.which` and `subprocess.run`. Tests must never make a
   real network call or spawn a real agent.
 - Adding an **HTTP** provider is one `PROVIDERS` entry; reuse `_openai_payload` / `_openai_parse` for anything OpenAI-compatible. Adding a **CLI** provider
-  is one entry plus an `argv` builder, and `reads_output_file` says whether the answer comes from a `-o` file or stdout.
+  is one entry plus an `argv` builder; `reads_output_file` says whether the answer comes from a `-o` file or stdout, and `accepts_stdin` says whether
+  the context can be piped (codex) or must be inlined into the prompt under `MAX_INLINE_PROMPT_BYTES` (agy).
 - The parametrized tests derive their provider lists from `PROVIDERS`, so new entries are covered automatically for the shared behaviors
 
 ## Dependencies
