@@ -105,28 +105,6 @@ def _openai_parse(data: dict[str, Any]) -> str:
     return str(choices[0].get("message", {}).get("content") or "")
 
 
-def _gemini_payload(url: str, key: str, model: str, system: str, user: str) -> tuple[str, dict[str, str], dict[str, object]]:
-    """Build a Gemini generateContent request."""
-    headers = {"x-goog-api-key": key, "Content-Type": "application/json"}
-    body: dict[str, object] = {
-        "systemInstruction": {"parts": [{"text": system}]},
-        "contents": [{"role": "user", "parts": [{"text": user}]}],
-    }
-    return url.format(model=model), headers, body
-
-
-def _gemini_parse(data: dict[str, Any]) -> str:
-    """Extract text from a Gemini response, skipping any thought parts."""
-    candidates = data.get("candidates") or []
-    if not candidates:
-        feedback = data.get("promptFeedback", {})
-        msg = f"response contained no candidates (promptFeedback: {feedback})"
-        raise ValueError(msg)
-    parts = candidates[0].get("content", {}).get("parts") or []
-    texts = [p["text"] for p in parts if "text" in p and not p.get("thought")]
-    return "\n".join(texts)
-
-
 # --------------------------------------------------------------------------
 # CLI transport
 # --------------------------------------------------------------------------
@@ -161,16 +139,6 @@ def _agy_argv(binary: str, prompt: str, model: str | None, out_path: str) -> lis
 
 
 PROVIDERS: dict[str, dict[str, Any]] = {
-    "gemini": {
-        "transport": "http",
-        "label": "Gemini",
-        "key_env": "GOOGLE_API_KEY",
-        "model_env": "ASK_LLM_GEMINI_MODEL",
-        "default_model": "gemini-2.5-flash",
-        "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        "payload": _gemini_payload,
-        "parse": _gemini_parse,
-    },
     "deepseek": {
         "transport": "http",
         "label": "DeepSeek",

@@ -42,7 +42,6 @@ def _run_writing(text: str, returncode: int = 0) -> Callable[..., subprocess.Com
 
 
 OPENAI_OK = {"choices": [{"message": {"content": "looks fine"}}]}
-GEMINI_OK = {"candidates": [{"content": {"parts": [{"text": "looks fine"}]}}]}
 
 HTTP_PROVIDERS = sorted(p for p, s in ask.PROVIDERS.items() if s["transport"] == "http")
 CLI_PROVIDERS = sorted(p for p, s in ask.PROVIDERS.items() if s["transport"] == "cli")
@@ -71,7 +70,6 @@ class TestHTTPProviders:
         ("provider", "key_env", "payload"),
         [
             ("deepseek", "DEEPSEEK_API_KEY", OPENAI_OK),
-            ("gemini", "GOOGLE_API_KEY", GEMINI_OK),
         ],
     )
     def test_returns_text(self, provider: str, key_env: str, payload: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
@@ -96,11 +94,11 @@ class TestHTTPProviders:
 
     def test_model_env_var_is_honored(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The per-provider model env var overrides the default model."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
-        monkeypatch.setenv("ASK_LLM_GEMINI_MODEL", "gemini-2.5-pro")
-        with patch("urllib.request.urlopen", return_value=_response(GEMINI_OK)) as mock:
-            ask.ask("gemini", "ctx")
-        assert "gemini-2.5-pro:generateContent" in mock.call_args[0][0].full_url
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+        monkeypatch.setenv("ASK_LLM_DEEPSEEK_MODEL", "deepseek-reasoner")
+        with patch("urllib.request.urlopen", return_value=_response(OPENAI_OK)) as mock:
+            ask.ask("deepseek", "ctx")
+        assert json.loads(mock.call_args[0][0].data)["model"] == "deepseek-reasoner"
 
     def test_question_switches_system_prompt(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Passing a question swaps the consult prompt for the answer prompt."""
@@ -108,13 +106,6 @@ class TestHTTPProviders:
         with patch("urllib.request.urlopen", return_value=_response(OPENAI_OK)) as mock:
             ask.ask("deepseek", "ctx", question="why?")
         assert json.loads(mock.call_args[0][0].data)["messages"][0]["content"] == ask.ANSWER_SYSTEM
-
-    def test_gemini_skips_thought_parts(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Gemini thought parts are excluded from the returned text."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
-        payload = {"candidates": [{"content": {"parts": [{"text": "hidden", "thought": True}, {"text": "shown"}]}}]}
-        with patch("urllib.request.urlopen", return_value=_response(payload)):
-            assert ask.ask("gemini", "ctx") == "shown"
 
     def test_http_error_is_surfaced(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Upstream HTTP errors carry the status code through."""
@@ -132,14 +123,21 @@ class TestHTTPProviders:
         ):
             ask.ask("deepseek", "ctx")
 
-    def test_empty_candidates_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """An empty Gemini candidate list is reported rather than indexed into."""
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+    def test_empty_choices_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An empty choices list is reported rather than indexed into."""
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
         with (
-            patch("urllib.request.urlopen", return_value=_response({"candidates": []})),
-            pytest.raises(ValueError, match="no candidates"),
+            patch("urllib.request.urlopen", return_value=_response({"choices": []})),
+            pytest.raises(ValueError, match="no choices"),
         ):
-            ask.ask("gemini", "ctx")
+            ask.ask("deepseek", "ctx")
+
+    def test_null_content_becomes_empty_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A null message content is coerced rather than raising."""
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+        payload = {"choices": [{"message": {"content": None}}]}
+        with patch("urllib.request.urlopen", return_value=_response(payload)):
+            assert ask.ask("deepseek", "ctx") == ""
 
 
 class TestCLIProviders:
@@ -278,16 +276,16 @@ class TestDisabling:
 
     def test_parses_list_and_ignores_whitespace(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Comma-separated names are parsed, with blanks and padding tolerated."""
-        monkeypatch.setenv(ask.DISABLED_ENV, " gemini , ,deepseek ")
-        assert ask.disabled_providers() == {"gemini", "deepseek"}
-        assert "gemini" not in ask.enabled_providers()
+        monkeypatch.setenv(ask.DISABLED_ENV, " agy , ,deepseek ")
+        assert ask.disabled_providers() == {"agy", "deepseek"}
+        assert "deepseek" not in ask.enabled_providers()
         assert "codex" in ask.enabled_providers()
 
     def test_disabled_provider_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Asking a disabled provider fails fast, without touching the network or a CLI."""
-        monkeypatch.setenv(ask.DISABLED_ENV, "gemini")
+        monkeypatch.setenv(ask.DISABLED_ENV, "deepseek")
         with patch("urllib.request.urlopen") as mock, pytest.raises(ValueError, match="disabled via"):
-            ask.ask("gemini", "ctx")
+            ask.ask("deepseek", "ctx")
         mock.assert_not_called()
 
     def test_refusal_happens_before_any_subprocess(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -304,16 +302,16 @@ class TestProviderStatus:
     def test_http_ready_when_key_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """An HTTP provider with its key set is ready."""
         monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
-        assert ask.provider_status("gemini")[0] == "ready"
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+        assert ask.provider_status("deepseek")[0] == "ready"
 
     def test_http_missing_names_the_variable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A missing key reports which variable to set."""
         monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        state, detail = ask.provider_status("gemini")
+        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+        state, detail = ask.provider_status("deepseek")
         assert state == "missing"
-        assert "GOOGLE_API_KEY" in detail
+        assert "DEEPSEEK_API_KEY" in detail
 
     def test_disabled_short_circuits(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A disabled provider reports as disabled regardless of its real state."""
@@ -422,7 +420,7 @@ class TestMain:
     def test_list_prints_every_provider(self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
         """--list reports on all providers and exits 0 when any are usable."""
         monkeypatch.delenv(ask.DISABLED_ENV, raising=False)
-        monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
         monkeypatch.setattr("sys.argv", ["ask.py", "--list"])
         with patch("shutil.which", return_value="/usr/local/bin/codex"), patch("subprocess.run", return_value=_completed(["codex"], 0)):
             assert ask.main() == 0

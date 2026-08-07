@@ -28,7 +28,7 @@ This repo is **not** a Python package. There is no `[project]` table, no lockfil
 
 ## Plugins
 
-- `ask-llm` - `/ask-llm` plus a model-invoked skill. `ask.py` has two transports: `http` providers (`gemini`, `deepseek`) POST to a REST endpoint with an
+- `ask-llm` - `/ask-llm` plus a model-invoked skill. `ask.py` has two transports: the `http` provider (`deepseek`) POSTs to a REST endpoint with an
   API key, and `cli` providers (`codex`, `agy`) shell out to a local agent that authenticates against the user's own subscription — the script never
   reads or transmits a credential for those. `--list` prints live readiness; `ASK_LLM_DISABLED_PROVIDERS` hides providers the user cannot use. Keep it
   standard-library only; adding a dependency reintroduces the packaging and patching burden this plugin exists to avoid.

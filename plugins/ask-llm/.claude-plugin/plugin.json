@@ -1,7 +1,7 @@
 {
   "name": "ask-llm",
   "version": "0.1.0",
-  "description": "Get a second opinion from Codex, Antigravity, Gemini, or DeepSeek. Standard-library Python script — no dependencies and no install step; the Codex and Antigravity agents need no API key at all. Available as the `/ask-llm` command and as a model-invoked skill.",
+  "description": "Get a second opinion from Codex, Antigravity, or DeepSeek — three different vendors. Standard-library Python script with no dependencies and no install step; the Codex and Antigravity agents need no API key at all. Available as the `/ask-llm` command and as a model-invoked skill.",
   "author": {
     "name": "Taylor Leese",
     "email": "tleese22@gmail.com"

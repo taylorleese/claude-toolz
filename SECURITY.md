@@ -32,7 +32,7 @@ You should receive a response within 48 hours. If you do not, please follow up v
 This repository ships Claude Code plugins — markdown instructions, shell hooks, and one standard-library Python script. It has no server, no network
 listener, and no persistent storage. The security-relevant surface is:
 
-- **API keys.** `ask-llm`'s HTTP providers read `GOOGLE_API_KEY` and `DEEPSEEK_API_KEY` from the environment. They are sent only to that provider's
+- **API keys.** `ask-llm`'s HTTP provider reads `DEEPSEEK_API_KEY` from the environment. It is sent only to that provider's
   official HTTPS endpoint, and are never logged, written to disk, or included in output. Its CLI providers (`codex`, `agy`) read no key at all — they
   delegate to a locally installed agent that holds its own credentials, so no secret passes through this code.
 - **Subprocess execution.** CLI providers are invoked with an argument list and an absolute path resolved via `shutil.which` — never through a shell — so

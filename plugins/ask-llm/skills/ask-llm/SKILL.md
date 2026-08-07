@@ -1,6 +1,6 @@
 ---
 name: ask-llm
-description: Get a second opinion from a non-Claude frontier model — Codex (OpenAI's coding agent), Antigravity (Google's coding agent), Gemini, or DeepSeek. Use when the user says "ask Codex", "ask Antigravity", "ask agy", "ask Gemini", "ask DeepSeek", "get a second opinion", "what would another model say", "sanity-check this with another model", or wants cross-model consensus on code, an architecture decision, or an implementation plan.
+description: Get a second opinion from a non-Claude frontier model — Codex (OpenAI's coding agent), Antigravity (Google's coding agent), or DeepSeek. Use when the user says "ask Codex", "ask Antigravity", "ask agy", "ask DeepSeek", "get a second opinion", "what would another model say", "sanity-check this with another model", or wants cross-model consensus on code, an architecture decision, or an implementation plan.
 ---
 
 # Ask another LLM
@@ -20,14 +20,14 @@ echo "<context>" | python3 "${CLAUDE_PLUGIN_ROOT}/skills/ask-llm/scripts/ask.py"
 For long or multi-line context, write it to a scratch file first and redirect:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/ask-llm/scripts/ask.py" --provider gemini < /path/to/context.md
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/ask-llm/scripts/ask.py" --provider codex < /path/to/context.md
 ```
 
 ### Options
 
 | Flag | Required | Notes |
 | --- | --- | --- |
-| `--provider` | yes | `codex`, `agy`, `gemini`, or `deepseek` |
+| `--provider` | yes | `codex`, `agy`, or `deepseek` |
 | `--question` | no | A specific question about the context. Omit it to request a general second opinion. |
 | `--model` | no | Override the provider's default model |
 | `--list` | no | Print every provider's live readiness and exit. Takes no stdin. |
@@ -61,14 +61,13 @@ comparison — treat it as though it does not exist rather than surfacing its er
   rather than milliseconds. **Prefer it for anything substantive.**
 - **`agy`** — Antigravity, Google's coding agent, run locally. Needs no API key. Comparable depth to `codex`, and a genuinely different vendor, so it is
   the best partner for a `codex` cross-check.
-- **`deepseek`** — strong on code (`deepseek-chat`), cheap, and fast.
-- **`gemini`** — fastest and cheapest (`gemini-2.5-flash`). Good for a quick sanity check.
+- **`deepseek`** — strong on code (`deepseek-chat`), cheap, and by far the fastest. Good for a quick sanity check.
 
-The CLI agents are roughly 5x slower than the HTTP providers — about 5-7 seconds against 1-2 — because they reason before answering. That is the tradeoff
-for depth and for needing no API key.
+The CLI agents are roughly 4x slower than DeepSeek — about 5-7 seconds against 1.4 — because they reason before answering. That is the tradeoff for depth
+and for needing no API key.
 
-For consensus, pick providers from different vendors: `codex` (OpenAI), `agy` (Google), `deepseek` (DeepSeek). Run them concurrently in a single message
-and summarize where they agree and disagree.
+All three are different vendors — `codex` (OpenAI), `agy` (Google), `deepseek` (DeepSeek) — so for consensus just run them concurrently in a single
+message and summarize where they agree and disagree.
 
 One constraint specific to `agy`: it ignores stdin, so the context travels in the command-line argument and is capped at 256 KB. Anything larger is
 refused with a clear error — send it to `codex` instead, which reads stdin and has no such limit.
@@ -82,7 +81,6 @@ transmits an API key for them.
 | --- | --- | --- | --- |
 | `codex` | CLI | `codex` on PATH + `codex login` | `ASK_LLM_CODEX_MODEL` |
 | `agy` | CLI | `agy` on PATH, authenticated on first run | `ASK_LLM_AGY_MODEL` |
-| `gemini` | HTTP | `GOOGLE_API_KEY` | `ASK_LLM_GEMINI_MODEL` |
 | `deepseek` | HTTP | `DEEPSEEK_API_KEY` | `ASK_LLM_DEEPSEEK_MODEL` |
 
 Because the script runs via Bash, API keys must be exported in the shell profile that Claude Code inherits (`~/.zshrc`, `~/.bashrc`) — not in a project

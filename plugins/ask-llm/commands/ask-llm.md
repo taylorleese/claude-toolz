@@ -1,5 +1,5 @@
 ---
-description: Ask Codex, Gemini, or DeepSeek for a second opinion
+description: Ask Codex, Antigravity, or DeepSeek for a second opinion
 allowed-tools: Bash, Read, Glob, Grep, Skill
 ---
 
@@ -11,11 +11,11 @@ Invoke the `ask-llm:ask-llm` skill via the Skill tool. It owns the script invoca
 
 `$ARGUMENTS` is `[provider] [question]`, both optional:
 
-- If the first word is `codex`, `agy`, `gemini`, `deepseek`, or `all`, that selects the provider and the remainder is the question.
+- If the first word is `codex`, `agy`, `deepseek`, or `all`, that selects the provider and the remainder is the question.
 - If the first word is not a provider name, the whole of `$ARGUMENTS` is the question and the provider defaults to `codex` — no API key required and the
   strongest choice for code.
-- `all` means run `codex`, `agy`, and `deepseek` concurrently in a single message, then summarize where they agree and disagree. Those are three
-  different vendors (OpenAI, Google, DeepSeek), so the disagreements are meaningful. Skip any provider listed in `ASK_LLM_DISABLED_PROVIDERS`.
+- `all` means run every enabled provider concurrently in a single message, then summarize where they agree and disagree. All three are different vendors
+  (OpenAI, Google, DeepSeek), so the disagreements are meaningful. Skip any provider listed in `ASK_LLM_DISABLED_PROVIDERS`.
 - `status` (or `list`) means run `ask.py --list` and show the readiness table instead of asking anything.
 - If `$ARGUMENTS` is empty, ask for a general second opinion on the current work using the default provider.
 
@@ -29,8 +29,7 @@ Examples:
 /ask-llm
 ```
 
-`codex` and `agy` reason before answering, so they take about 5-7 seconds against 1-2 for the HTTP providers. That is expected — do not treat the delay
-as a hang.
+`codex` and `agy` reason before answering, so they take about 5-7 seconds against DeepSeek's 1.4. That is expected — do not treat the delay as a hang.
 
 ## Assembling the context
 
