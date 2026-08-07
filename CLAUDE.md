@@ -28,13 +28,24 @@ This repo is **not** a Python package. There is no `[project]` table, no lockfil
 
 ## Plugins
 
-- `ask-llm` - `ask.py` calls ChatGPT / Gemini / DeepSeek REST endpoints directly. Keep it standard-library only; adding a dependency reintroduces the
-  packaging and patching burden this plugin exists to avoid.
+- `ask-llm` - `/ask-llm` plus a model-invoked skill. `ask.py` calls ChatGPT / Gemini / DeepSeek REST endpoints directly. Keep it standard-library only;
+  adding a dependency reintroduces the packaging and patching burden this plugin exists to avoid.
 - `precommit-detect` - SessionStart/PostToolUse hooks that detect pre-commit setup state and walk through approval-gated installs.
+- `resolve-github-alerts` - `/resolve-github-alerts` plus a model-invoked skill. Triages and resolves GitHub security alerts across
+  pip/pip-tools/poetry/uv/npm/cargo/go/docker/actions ecosystems and opens a single PR for review.
 - `revise-all-docs` - `/revise-all-docs` captures session learnings; `/improve-all-docs` (and the `all-docs-improver` skill) run static quality audits.
   Depends on `claude-md-management@anthropics`.
-- `resolve-github-alerts` - `/resolve-github-alerts` triages and resolves GitHub security alerts across pip/pip-tools/poetry/uv/npm/cargo/go/docker/actions
-  ecosystems and opens a single PR for review.
+
+### Command and skill conventions
+
+A plugin's `commands/` and `skills/` are two entry points, not two implementations. When a plugin has both, the **skill owns the workflow** and the command
+is a thin wrapper that invokes it via the `Skill` tool, parses `$ARGUMENTS`, and summarizes the result. Never duplicate the procedure in both files — they
+drift. `commands/improve-all-docs.md` is the reference example, at 17 lines.
+
+`/revise-all-docs` is the exception: it has no skill and owns its workflow inline, because capturing session learnings only makes sense on explicit request.
+
+Skill `description` frontmatter is what decides auto-invocation, so it must carry the trigger phrasing a user would actually type. For skills with side
+effects — `resolve-github-alerts` opens pull requests — the description must also state when *not* to fire.
 
 ## Releasing
 

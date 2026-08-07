@@ -25,8 +25,19 @@ Install only the ones you want — they are independent.
 
 ### `ask-llm`
 
-Gets a second opinion from a non-Claude frontier model: ChatGPT (OpenAI), Gemini (Google), or DeepSeek. Ask in plain language — "ask Gemini what it thinks
-of this schema", "get a second opinion on this plan", "what would ChatGPT say about this bug" — and Claude invokes the skill.
+Gets a second opinion from a non-Claude frontier model: ChatGPT (OpenAI), Gemini (Google), or DeepSeek.
+
+Two ways in. Ask in plain language — "ask Gemini what it thinks of this schema", "get a second opinion on this plan", "what would ChatGPT say about this
+bug" — and Claude invokes the skill. Or drive it explicitly:
+
+```text
+/ask-llm gemini is this migration reversible?
+/ask-llm all which caching strategy would you pick here?
+/ask-llm does this error handling miss anything?
+```
+
+The first word selects the provider when it is `chatgpt`, `gemini`, `deepseek`, or `all`; otherwise the whole argument is the question and it defaults to
+Gemini. `all` runs the three concurrently and summarizes where they agree and disagree.
 
 Set only the keys for the providers you use, exported in the shell profile Claude Code inherits (`~/.zshrc`, `~/.bashrc`):
 
@@ -58,9 +69,15 @@ go-modules / Docker / GitHub Actions** ecosystems. Run it in any repo to:
 
 Auto-detects the project's verify commands (Makefile targets, pre-commit, ruff, pytest, npm scripts) — no per-project configuration required.
 
+Two ways in, same as `ask-llm`. Run it explicitly, optionally narrowing the scope:
+
 ```text
 /resolve-github-alerts
+/resolve-github-alerts dependabot only
 ```
+
+Or just ask — "fix the security alerts on this repo", "clean up the failing Dependabot PRs" — and Claude invokes the skill. Because it creates a branch and
+opens a pull request, the skill is written to trigger only on a clear request to remediate, not when you are merely asking what the alerts are.
 
 ### `revise-all-docs`
 

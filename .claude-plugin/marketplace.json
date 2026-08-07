@@ -9,7 +9,7 @@
     {
       "name": "ask-llm",
       "source": "./plugins/ask-llm",
-      "description": "Get a second opinion from ChatGPT, Gemini, or DeepSeek. Standard-library Python script — no dependencies and no install step."
+      "description": "Get a second opinion from ChatGPT, Gemini, or DeepSeek via /ask-llm or plain language. Standard-library Python script — no dependencies and no install step."
     },
     {
       "name": "precommit-detect",
@@ -19,7 +19,7 @@
     {
       "name": "resolve-github-alerts",
       "source": "./plugins/resolve-github-alerts",
-      "description": "Resolves GitHub security alerts (Dependabot, code scanning, secret scanning) and opens PRs for review."
+      "description": "Resolves GitHub security alerts (Dependabot, code scanning, secret scanning) and opens PRs for review, via /resolve-github-alerts or plain language."
     },
     {
       "name": "revise-all-docs",
