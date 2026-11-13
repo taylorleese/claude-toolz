@@ -4,8 +4,8 @@
 
 A Claude Code plugin marketplace. Four plugins live under `plugins/`, each advertised in `.claude-plugin/marketplace.json`.
 
-This repo is **not** a Python package. There is no `[project]` table, no lockfile, and nothing is published to a package index. The only Python is
-`plugins/ask-llm/skills/ask-llm/scripts/ask.py` (standard library only) and its tests.
+This repo is **not** a Python package. `pyproject.toml` has a minimal `[project]` table only so uv has a `requires-python`; `[tool.uv] package = false`
+means nothing is built, installed, or published. The only Python is `plugins/ask-llm/skills/ask-llm/scripts/ask.py` (standard library only) and its tests.
 
 ## Key Commands
 
@@ -78,5 +78,8 @@ No package publish step exists. To ship a plugin change: bump `version` in that 
 
 ## Dependencies
 
-Dev tooling only: `pytest` and `pre-commit`, installed unpinned by `make install-dev`. Dependabot tracks GitHub Actions only, because that is the sole
-dependency surface left. Keep it that way.
+Managed with uv, matching the user's other repos. The `dev` dependency group (`pytest`, `pre-commit`) is the entire dependency set, locked with hashes in
+`uv.lock`; `make install-dev` runs `uv sync`, and CI runs `uv sync --locked`, which fails if `pyproject.toml` changed without re-running `uv lock`. The
+lockfile exists for reproducible CI and Scorecard's Pinned-Dependencies check — never add a runtime dependency (`ask.py` stays standard library only).
+Linter versions are pinned separately by `rev` in `.pre-commit-config.yaml`. Dependabot tracks two ecosystems, `github-actions` and `uv`, each grouped
+into one monthly PR.

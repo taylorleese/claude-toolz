@@ -14,24 +14,24 @@ help:
 	@echo "  make clean            - Remove caches and generated files"
 
 # The plugins are markdown and shell, and the one Python script is standard
-# library only, so pytest and pre-commit are the entire dev dependency set.
-# There is deliberately no lockfile here.
+# library only, so pytest and pre-commit (the dev group in pyproject.toml,
+# locked in uv.lock) are the entire dev dependency set.
 install-dev:
-	pip install pytest pre-commit
-	pre-commit install
+	uv sync
+	uv run pre-commit install
 
 test:
-	pytest
+	uv run pytest
 
 lint:
-	pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 format:
-	pre-commit run trailing-whitespace --all-files
-	pre-commit run end-of-file-fixer --all-files
-	pre-commit run ruff --all-files
-	pre-commit run ruff-format --all-files
-	pre-commit run markdownlint --all-files
+	uv run pre-commit run trailing-whitespace --all-files
+	uv run pre-commit run end-of-file-fixer --all-files
+	uv run pre-commit run ruff --all-files
+	uv run pre-commit run ruff-format --all-files
+	uv run pre-commit run markdownlint --all-files
 
 check-plugins:
 	@python3 scripts/check_plugins.py

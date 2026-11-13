@@ -11,6 +11,7 @@ Please be respectful and constructive in your interactions with other contributo
 ### Prerequisites
 
 - Python 3.13 or later
+- [uv](https://docs.astral.sh/uv/)
 - Git
 
 ### Setup
@@ -21,8 +22,8 @@ cd claude-toolz
 make install-dev
 ```
 
-`make install-dev` installs `pytest` and `pre-commit` and registers the pre-commit hook. That is the entire dev dependency set — there is no lockfile and
-no virtual environment is required, though one is fine if you prefer it.
+`make install-dev` runs `uv sync` — creating `.venv` with `pytest` and `pre-commit` from `uv.lock`, the entire
+dev dependency set — and registers the pre-commit hook. After changing the `dev` group in `pyproject.toml`, run `uv lock` and commit `uv.lock`.
 
 ## Repository Layout
 
