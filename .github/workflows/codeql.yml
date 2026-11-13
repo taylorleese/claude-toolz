@@ -8,6 +8,7 @@ name: CodeQL
   schedule:
     # Run every Monday at 8:00 UTC
     - cron: '0 8 * * 1'
+  workflow_dispatch:
 
 # Declare minimal permissions for all jobs
 permissions: read-all
