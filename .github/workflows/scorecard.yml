@@ -1,0 +1,47 @@
+name: OpenSSF Scorecard
+
+"on":
+  # Run on branch protection changes or scheduled
+  branch_protection_rule:
+  schedule:
+    # Weekly on Monday at 8:00 UTC (after dependabot runs at 7:00)
+    - cron: '0 8 * * 1'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Declare minimal permissions for all jobs
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      # Needed to upload the results to code-scanning dashboard
+      security-events: write
+      # Needed to publish results
+      id-token: write
+      # Needed to read the repo
+      contents: read
+      # Needed to read actions
+      actions: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v5
+        with:
+          persist-credentials: false
+
+      - name: Run OpenSSF Scorecard
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a  # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Publish results to OpenSSF REST API for easy public access
+          publish_results: true
+
+      - name: Upload to code-scanning
+        uses: github/codeql-action/upload-sarif@b1bff81932f5cdfc8695c7752dcee935dcd061c8  # v4
+        with:
+          sarif_file: results.sarif
