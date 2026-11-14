@@ -1,6 +1,27 @@
 # Tooling configuration only. This repository is a Claude Code plugin
-# marketplace, not a Python package — there is no [project] table, nothing is
-# built, and nothing is published to a package index.
+# marketplace, not a Python package: [project] exists solely to give uv a
+# requires-python, package = false means uv never builds or installs it, and
+# nothing is published to a package index.
+#
+# The dev group is the entire dependency set: ask.py is standard library only.
+# uv.lock pins it with hashes so CI is reproducible and Scorecard's
+# Pinned-Dependencies check passes. The linters themselves are pinned
+# separately, by rev, in .pre-commit-config.yaml.
+
+[project]
+name = "claude-toolz"
+version = "0.0.0"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4",
+    "pre-commit>=4.3",
+]
 
 [tool.ruff]
 line-length = 140

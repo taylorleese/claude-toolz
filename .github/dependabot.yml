@@ -1,7 +1,8 @@
 version: 2
-# The only dependency surface left in this repo is GitHub Actions. The plugins
-# are markdown and shell; the one Python script uses the standard library, so
-# there is no manifest or lockfile for the pip ecosystem to track.
+# Two dependency surfaces: GitHub Actions, and the dev-only uv group
+# (pytest, pre-commit) in uv.lock. The plugins are markdown and shell and the
+# one Python script uses the standard library, so nothing at runtime depends
+# on a third-party package. Both are grouped monthly to keep it to one PR each.
 #
 # Vulnerability alerts are a repository setting, not a file: they are enabled
 # under Settings > Code security > Dependabot alerts and are unaffected by this
@@ -21,5 +22,22 @@ updates:
       include: "scope"
     groups:
       github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    target-branch: "main"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      dev:
         patterns:
           - "*"
