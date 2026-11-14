@@ -4,6 +4,8 @@
 [![GitHub last commit](https://img.shields.io/github/last-commit/taylorleese/claude-toolz)](https://github.com/taylorleese/claude-toolz/commits/main)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11358/badge)](https://www.bestpractices.dev/projects/11358)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/taylorleese/claude-toolz/badge)](https://scorecard.dev/viewer/?uri=github.com/taylorleese/claude-toolz)
 
 A Claude Code plugin marketplace: four plugins for second opinions, security triage, docs upkeep, and pre-commit setup.
 
