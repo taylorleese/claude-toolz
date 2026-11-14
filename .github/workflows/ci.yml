@@ -16,7 +16,8 @@ jobs:
       contents: read
     strategy:
       matrix:
-        python-version: ["3.13", "3.14"]
+        # The supported floor (requires-python) and the newest release.
+        python-version: ["3.13", "3.15"]
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v5

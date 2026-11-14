@@ -95,7 +95,7 @@ avoid.
 3. Bump `version` in the affected plugin's `plugin.json` — without it, Claude Code's install cache makes the update a silent no-op
 4. Push your branch and open a pull request describing what changed and how you tested it
 
-CI must pass: tests on Python 3.13 and 3.14, pre-commit lint, plugin manifest validation, and CodeQL.
+CI must pass: tests on Python 3.13 (the minimum) and 3.15 (the latest), pre-commit lint, plugin manifest validation, and CodeQL.
 
 ## Security
 
